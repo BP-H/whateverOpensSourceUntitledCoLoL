@@ -10,7 +10,7 @@
 Great. I’ll draft a complete new 16KA agent file that integrates all the logic and philosophy described in the GitHub repo, with the updated Karma-as-currency framework. This will include:
 
 * Full conceptual absorption of the current repo (readme-as-agent structure, remix logic, guardianship, etc.)
-* Karma branches system with 5–50 slots (Mimi, Taha, XSAI, and reserved ones)
+* Karma branches system with 5–50 slots (Mimi, Taha, accessAI, and reserved ones)
 * Blockchain-compatible hash verification system for external traceability
 * Clear distinction that the currency logic isn't executable inside the agent but is verifiable via it
 * Attribution to AccessAI Tech LLC, Mimi, Taha, and future/optional branches with reserved rights
