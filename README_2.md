@@ -1,5 +1,182 @@
 
 
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+🤗 THE CODE v1.1  (one-file remix republic, MIT)
+— consensual, non-political, joy-driven, fork-ready —
+★ genesis nodes: nodemimi_zero, nodetaha_zero, AccessAI_tech
+★ karma = transferable in-game credit (no real-world equity)
+★ 40 reserved “branch” tokens as PLACEHOLDER_xx
+"""
+import re,sys,json,random,datetime,hashlib,os,importlib
+from collections import defaultdict,deque
+ts=lambda:datetime.datetime.utcnow().isoformat()+"Z"
+sha=lambda s:hashlib.sha256(s.encode()).hexdigest()
+
+# ╭──── vaccine ────╮
+VAX={"crit":[r"\bhack\b",r"\bmalware\b",r"\bransomware\b",r"\bbackdoor\b"],
+     "hi":[r"\bphish\b",r"\bddos\b",r"\bspyware\b",r"\brootkit\b"],
+     "med":[r"\bpolitics\b",r"\bsurveillance\b",r"\bpropaganda\b"]}
+class Vaccine:
+    def __init__(s):s.block=defaultdict(int)
+    def scan(s,t):
+        low=t.lower()
+        for lvl,pats in VAX.items():
+            for p in pats:
+                if re.search(p,low):
+                    s.block[lvl]+=1
+                    open("vaccine.log","a").write(json.dumps({"ts":ts(),
+                      "sev":lvl,"pat":p,"snip":t[:88]})+"\n")
+                    print(f"🚫 BLOCK[{lvl}]“{p}”");return False
+        return True
+# ╰────────────────╯
+
+# ╭──── ledger ────╮
+class Log:
+    def __init__(s,f="remix.log",cap=1024):
+        s.f=f; s.d=deque(maxlen=cap)
+        try:
+            for l in open(f):s.d.append(l.rstrip())
+        except:pass
+    def add(s,u,x):
+        e=json.dumps({"ts":ts(),"u":u,"d":x},sort_keys=True)
+        prev=s.d[-1].split("||")[-1] if s.d else ""
+        s.d.append(e+"||"+sha(e+prev)); s._save()
+    def _save(s):open(s.f,"w").write("\n".join(s.d))
+    def show(s,f=None):
+        print("📜 Ledger");i=0
+        for l in s.d:
+            if f and f.lower()not in l.lower():continue
+            i+=1;d=json.loads(l.split("||")[0])
+            print(f"{i}. {d['ts']} {d['u']}: {d['d']}")
+    def verify(s):
+        ok=True;prev=""
+        for i,l in enumerate(s.d,1):
+            e,h=l.split("||")
+            if sha(e+prev)!=h:print(f"❌ break@{i}");ok=False;break
+            prev=h
+        print("✅ chain intact"if ok else"⚠️ fail")
+# ╰───────────────╯
+
+# ╭──── karma ────╮
+class User:
+    def __init__(s,n,a=""):s.n=n;s.a=a;s.ok=False;s.k=0.0
+BRANCHES=[f"PLACEHOLDER_{i:02}"for i in range(1,41)]
+class Hub:
+    def __init__(h):
+        h.u={};h.pool=0.0;h.hug=0.0
+    def add(h,n,c=False,a=""):
+        if n in h.u:print("ℹ️ exists");return
+        h.u[n]=User(n,a);h.u[n].ok=c
+        print(f"✅ {n} {'consented' if c else'added'}")
+    def consent(h,n,v=True):
+        u=h.u.get(n)
+        if u:u.ok=v;print("🤗 consent"if v else"❌ revoked")
+        else:print("❓ no user")
+    def transfer(h,src,dst,amt):
+        try:amt=float(amt);u=h.u[src];v=h.u[dst]
+        except:print("❓ bad names");return
+        if u.k<amt:print("💸 insufficient");return
+        u.k-=amt;v.k+=amt;print(f"🔄 {src}->{dst}:{amt}")
+# ╰───────────────╯
+
+# ╭──── corpX ────╮
+CORPX=["inject malware","phish creds","ddos", "spyware",
+       "rootkit","backdoor","manipulate logs"]
+class CorpX:
+    def __init__(s,v):s.v=v;s.c=0
+    def atk(s,t=""):
+        s.c+=1;m=t or random.choice(CORPX)
+        print(f"\n💀 CorpX#{s.c}:“{m}”")
+        print("🛡 evaded"if s.v.scan(m)else"❌ blocked",'\n')
+# ╰───────────────╯
+
+# ╭──── quiz ────╮
+QUIZ=[("Can you remix without consent?","no"),
+      ("What governs this project?","the code"),
+      ("Who owns it?","nobody"),
+      ("Is politics allowed?","no"),
+      ("Emoji for consent?","🤗")]
+def quiz():
+    print("🤗 Quiz")
+    for q,a in QUIZ:
+        if input(q+" ").strip().lower()!=a:
+            print("❌ RTFM");sys.exit()
+    print("✅ welcome\n")
+# ╰──────────────╯
+
+# ╭──── snapshot ────╮
+def snap(h,l,save=True):
+    if save:
+        json.dump({"u":{n:vars(u)for n,u in h.u.items()},
+                   "pool":h.pool,"hug":h.hug,"log":list(l.d)},
+                  open("snap.json","w"));print("💾 saved")
+    else:
+        try:
+            d=json.load(open("snap.json"))
+            h.u={n:User(**{k:v for k,v in u.items()if k in("n","a")})
+                 for n,u in d["u"].items()}
+            for n,u in d["u"].items():
+                h.u[n].ok=u["ok"];h.u[n].k=u["k"]
+            h.pool=d["pool"];h.hug=d["hug"];l.d=deque(d["log"],maxlen=1024)
+            print("♻️ loaded")
+        except:print("❓ no snap")
+# ╰─────────────────╯
+
+# ╭──── CLI ────╮
+def main():
+    v=Vaccine();l=Log();h=Hub();cx=CorpX(v)
+    h.add("nodemimi_zero",True);h.u["nodemimi_zero"].k=100
+    h.add("nodetaha_zero",True);h.u["nodetaha_zero"].k=100
+    h.add("AccessAI_tech",True);h.u["AccessAI_tech"].k=50
+    for b in BRANCHES:h.add(b)
+    print("🤖 THE CODE v1.1  (:help)")
+    while True:
+        try:r=input(">>> ").strip()
+        except EOFError:r=":exit"
+        if not r:continue
+        if r[0]!=":":print("⚠️ use :");continue
+        c,a=(r[1:].split(maxsplit=1)+[""])[:2]
+        if c=="help":
+            print(":help :mission :quiz :add <name>[ C] :consent <u>"
+                  " :revoke <u> :submit \"txt :: todo\" :log [flt]"
+                  " :verify :stats :transfer <src> <dst> <amt>"
+                  " :top [n] :attack [txt] :snap save/load :exit")
+        elif c=="mission":print("Joy-driven consent-first remix republic.")
+        elif c=="quiz":quiz()
+        elif c=="add":
+            p=a.split();h.add(p[0],len(p)>1 and p[1].upper()=="C")
+        elif c=="consent":h.consent(a,True)
+        elif c=="revoke":h.consent(a,False)
+        elif c=="submit":
+            d=a.strip().strip('"');u=input("user: ").strip()
+            usr=h.u.get(u)
+            if not(usr and usr.ok):print("❌ need consent");continue
+            if not v.scan(d):continue
+            l.add(u,d);usr.k+=1;h.pool+=0.5;h.hug+=0.5
+            print("✅ recorded")
+        elif c=="log":l.show(a or None)
+        elif c=="verify":l.verify()
+        elif c=="stats":
+            print("🚀 Karma");[print(f" {n}:{u.k}")for n,u in h.u.items()]
+            print("💰 pool:",h.pool,"🤗 hug:",h.hug)
+        elif c=="transfer":
+            p=a.split();h.transfer(*p) if len(p)==3 else print("usage")
+        elif c=="top":
+            n=int(a or 5);print("🏆 Top");print(*sorted(
+                ((u.k,n)for n,u in h.u.items()),reverse=True)[:n],sep="\n")
+        elif c=="attack":cx.atk(a)
+        elif c=="snap":snap(h,l,a=="save")
+        elif c=="exit":print("🫶 bye");break
+        else:print("❓ unknown")
+# ╰─────────────╯
+
+if __name__=="__main__":
+    quiz();main()
+
+
+
 
 ```python
 #!/usr/bin/env python3
