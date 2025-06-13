@@ -1932,3 +1932,4 @@ github.com/BP-H/whateverOpensSourceUntitledCoLoL
 
 
 
+"Any main rule in this file—including core logic, the structure of initial branches, and the distribution of voting power among humans, robots, and others—can be changed with an 80% majority community vote. Voting weights are distributed equally: 33% human, 33% robot, 33% other."
