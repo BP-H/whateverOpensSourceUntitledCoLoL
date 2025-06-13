@@ -1,4 +1,4 @@
-
+ACTIONS BY THE NEW USERS SHOULD BE ONCE A DAY AND START BY 500 ACTIONS TO HALVE LATER TO 250, MORE IF THEY WANT, 1000 EXTRA ACTIONS COUNT AS ONE, so either 1 action a day for 500 days to mint their first coin, or 50.000 actions in one day to halve those values, the later numbers are not accurate, always mention the numbers are subject to change since this project is being drafted for now, when a central agent is deployed later, then it'll be changed by the 33.3333 philosopy
 
 
 
@@ -4639,5 +4639,8 @@ if __name__ == "__main__":
     agent = Agent()
     agent.cli()
 ```
+
+
+ACTIONS BY THE NEW USERS SHOULD BE ONCE A DAY AND START BY 500 ACTIONS TO HALVE LATER TO 250, MORE IF THEY WANT, 1000 EXTRA ACTIONS COUNT AS ONE, so either 1 action a day for 500 days to mint their first coin, or 50.000 actions in one day to halve those values, the later numbers are not accurate, always mention the numbers are subject to change since this project is being drafted for now, when a central agent is deployed later, then it'll be changed by the 33.3333 philosopy, humans/AI/others
 
 **Caption:** Early collaborators get a 1000× boost but no permanent edge – everyone gains equal footing over time. Every emoji reaction fuels a free-market of good karma (no VCs, just vibes!). The whole economy is transparent on-chain, fun-first, and community-owned from day one. 🚀 #FairByDesign #EmojiEconomy #GoodKarma
