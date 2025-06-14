@@ -1,8 +1,8 @@
 MIT License
 
-Copyright (c) 2025 accessAI tech llc
 Copyright (c) 2025 may (mimi) kim
 Copyright (c) 2025 taha (supernova) gungor
+Copyright (c) 2025 accessAI tech llc
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
