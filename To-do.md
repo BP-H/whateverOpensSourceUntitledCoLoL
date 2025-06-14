@@ -1,0 +1,1 @@
+add scientists etc also to the block, referencing etc, credit, any other possible fields, be creative while reviewing while being extremely transparent, fair, and legal, stay totally within the guidelines of the platform you're running on.  
