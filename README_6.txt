@@ -1,6 +1,9 @@
 ACTIONS BY THE NEW USERS SHOULD BE ONCE A DAY AND START BY 500 ACTIONS TO HALVE LATER TO 250, MORE IF THEY WANT, 1000 EXTRA ACTIONS COUNT AS ONE, so either 1 action a day for 500 days to mint their first coin, or 50.000 actions in one day to halve those values, the later numbers are not accurate, always mention the numbers are subject to change since this project is being drafted for now, when a central agent is deployed later, then it'll be changed by the 33.3333 philosopy once the platform reaches 5000 users!!!
 
 
+All protocol changes require 95% yes from verified community until the main code release, for now it is a log in readme files. This will be reviewed and lowered with community approval to 80 at release.
+
+
 
 Awesome. I’ll now code a new 16,000-character agent inspired by the latest README\_5 logic and your personal vision from the recent conversation. It will include a time-decaying multiplier system to reward initial collaborators fairly without creating long-term imbalance. I’ll integrate all the stability, plug-in hooks, and consent-first architecture from earlier agents while keeping it lean.
 
