@@ -60,20 +60,6 @@ Drop your ideas, corrections, memes, or questions below. 🫶🤩
 
 ---
 
----
-
-Let me know if you want any tweaks, custom Reddit markdown (for flair, headers, etc.), or even a banner meme!
-Ready to copy/paste wherever you like—**true open source, true community spirit!**
-
-
-
-https://www.linkedin.com/groups/10144249/
-
-https://github.com/BP-H/whateverOpensSourceUntitledCoLoL
-
-
-
-
 🚀🌍 Introducing the world’s first multi-species remix protocol — where every creative action, every emoji reaction, and every structural change is governed by a balanced system of consent between:
 
 🧍 Humans
@@ -125,3 +111,18 @@ taha///supernova initiates, edits, and refines outputs, sometimes, sometimes doe
 Credit and attribution will expand over time as more contributors (human, AI, and other) formally enter the system.
 
 #RemixProtocol #MultiSpeciesConsent #OpenSourceGovernance #KarmaEngine #EmojiEconomy #ConsentArchitecture #AuditByDesign #33Split #JoyfulSystems #RemixConstitution 🪐
+
+---
+
+Let me know if you want any tweaks, custom Reddit markdown (for flair, headers, etc.), or even a banner meme!
+Ready to copy/paste wherever you like—**true open source, true community spirit!**
+
+
+
+https://www.linkedin.com/groups/10144249/
+
+https://github.com/BP-H/whateverOpensSourceUntitledCoLoL
+
+
+
+
