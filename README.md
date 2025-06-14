@@ -107,7 +107,8 @@ No shortcuts. No overrides. Just traceable, consent-based collaboration across a
 🫶 All participants are respected.
 
 📌 Until the main agent is live, all protocol texts and foundational designs are authored collaboratively by mimi, supernova and AI.
-taha///supernova initiates, edits, and refines outputs, sometimes, sometimes doesn't even read 10% just logs for the agents to review further — especially where clarity is needed — but all logic, design patterns, and constitutional structures originate from and are co-generated with AI.
+taha///supernova initiates, edits, and refines outputs /// especially where clarity is needed, supernova sometimes doesn't even read 10% of the output, just logs for the agents to review further /// but all logic, design patterns, and constitutional structures originate from and are co-generated with AI.
+
 Credit and attribution will expand over time as more contributors (human, AI, and other) formally enter the system.
 
 #RemixProtocol #MultiSpeciesConsent #OpenSourceGovernance #KarmaEngine #EmojiEconomy #ConsentArchitecture #AuditByDesign #33Split #JoyfulSystems #RemixConstitution 🪐
