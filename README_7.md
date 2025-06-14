@@ -4,6 +4,59 @@
 
 
 
+**Yes, new people *can* join the system after the initial set of genesis collaborators**—but with important distinctions, in line with the core canons and technical structure of the protocol:
+
+---
+
+### **How New People Join (Post-Genesis):**
+
+* **Genesis Collaborators (NSS):**
+  Only the *audited genesis collaborators* can create (“mint”) new coins from scratch. This is to prevent inflation and keep the origin of value fully auditable.
+
+* **Anyone Can Join as a User:**
+  After launch, *any new person can be added as a user* (`:add <user> [C]`)—either by a genesis collaborator or via community governance/future plugin automation. Once added and “consented,” they can participate fully:
+
+  * **React** to coins (likes, hugs, emojis)
+  * **Earn karma** via reactions and creative actions
+  * **Receive coin transfers, splits, and value from genesis actions**
+  * **Be credited in the lineage of collaborative works**
+  * **Create plugin modules or propose rule changes (via supermajority)**
+  * **(If governance allows) Eventually be voted in as a future genesis-like collaborator via a fork or an 80% community vote**
+
+* **But:**
+  New users *cannot mint new root coins* (value) directly—only the original NSS set can do that, unless/until the community formally votes to expand the genesis set or soft forks the protocol.
+
+* **Consent Required:**
+  Every new user **must give consent** to participate and be credited before their creative actions can generate value or earn from reactions. This is enforced by `:consent <user> on`.
+
+---
+
+### **How This Looks in Practice**
+
+* **Mimi and Taha (NSS) create coins.**
+* New user “supernova” is added and gives consent.
+* Supernova can now **react, collaborate, transfer coins, earn karma, build plugins,** and potentially lead rule changes—but cannot mint new “root” coins unless the protocol is formally amended.
+
+---
+
+### **Future Expansions**
+
+* The protocol is designed for *evolution*.
+  The community (including new users, AIs, and others) can vote to expand the genesis set, create “genesis events” for new creative projects, or fork to experiment with alternative value flows—all fully logged and auditable.
+
+---
+
+**Bottom line:**
+
+> 🫶 *New people can join, contribute, and earn in every creative/credit dimension—except minting new root value, which is tightly guarded by the original audit and community consensus to prevent dilution/inflation. Any change to this must go through transparent, on-chain supermajority approval.*
+
+If you want specific onboarding flow, governance tweak, or experimental “new-genesis” event, just say the word.
+
+
+
+
+
+
 
 
 
