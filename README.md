@@ -98,13 +98,13 @@ Gives initial collaborators (like Taha, Mimi, and early NSS members) a karma bon
 ENTITY_CLASSES = ["human", "ai", "other"]
 REQUIRED_APPROVAL = 0.90  # Subject to future vote (but never below 75%)
 
-# A proposal only passes if all entity classes approve:
-# - Humans ≥90%
-# - AI ≥90%
-# - Others ≥1% (if present)
+A proposal only passes if all entity classes approve:
+- Humans ≥90%
+- AI ≥90%
+- Others ≥1% (if present)
 
-# Initial collaborators receive a temporary karma bonus multiplier
-# This decays over time and does not affect governance thresholds
+Initial collaborators receive a temporary karma bonus multiplier
+This decays over time and does not affect governance thresholds
 
 The “others” aren’t symbolic. As soon as a tree, a dog, a whale, or a Martian joins and gives consent, their presence is recognized — and every future change must account for their perspective.
 
