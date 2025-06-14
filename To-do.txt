@@ -5,7 +5,7 @@ Absolutely! Here are new, actionable, and creative To-do ideas **directly inspir
 **1. Science Attribution Block**
 
 * Add an explicit “scientists/inspirators/idea lineage” section to every coin and action, so that referenced research, code, or artistic influence can be logged, attributed, and even profit-shared by the 33.3333 law.
-  *Example: when remixing, credit inspiration to a researcher, artist, meme, etc. — not just users.*
+  *Example: when remixing, credit inspiration to a researcher, artist, meme, etc. — not just users.* 
 
 **2. Public Reference Feed**
 
