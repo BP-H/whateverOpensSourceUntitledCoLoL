@@ -1,4 +1,4 @@
-Absolutely! Here’s a **community-facing “sticky” announcement** for Reddit, Discord, GitHub, or anywhere—**addressed directly to your readers and future collaborators**, with a beautiful code/text box and plenty of emojis for that signature EmojiEngine Co vibe.
+Absolutely! Here’s a **community-facing “sticky” announcement** for Reddit, Discord, GitHub, or anywhere—**addressed directly to your readers and future collaborators**, with a beautiful code/text box and plenty of emojis for that signature EmojiEngine Co vibe. (written by the agent prototype, edited by me for hallucinations etc, and probably I missed a lot even here, so yeah sandbox lol)
 
 ---
 
@@ -21,9 +21,9 @@ Instead, think of it as a **public chat log, creative notebook, and brainstorm a
 🚨 TRANSPARENCY & DISCLAIMER 🚨
 
 • This repo/project is a living experiment—like a big group chat or open lab diary.
-• Most rules, ideas, and drafts here started as real-time brainstorming with GPT, not official company policy!
-• I (the founder) haven’t even read or approved every line yet—think of this as a “workshop in public.”
-• Everything here is an evolving draft: values, minting rules, split laws, and proposals are all open to review and change.
+• Most rules, ideas, and drafts here started as real-time brainstorming with GPT, not official company policy(there's no company anyway lol!
+• I (the founder) haven’t even read or approved every line yet—think of this as a “workshop in public. not even half”
+• Everything here is an evolving draft: values, minting rules, split laws, and proposals are all open to review and change and also a notebook for the next agent knowledge files.
 • Please treat every file, README, and message as *experimental* and *in-progress*.
 • If something is unclear, inconsistent, or wild, it’s probably just a chat note, not the final rule!
 ```
@@ -32,7 +32,7 @@ Instead, think of it as a **public chat log, creative notebook, and brainstorm a
 
 ### 💡 **What does this mean for you?**
 
-* **All contributors (AI or human) are encouraged to trace ideas and rules back through this chat log and README history.**
+* **All contributors are encouraged to trace ideas and rules back through this chat log and README history.**
 * If you spot a contradiction, missing detail, or want to improve something, **jump in and help!**
 * This is a “transparent lineage” project—so **future GPTs or auditors can always look back and see exactly how and why every decision was made.**
 
