@@ -56,6 +56,8 @@ Absolutely! Here are new, actionable, and creative To-do ideas **directly inspir
 If you want these formatted for direct inclusion in your `To-do.txt` or as agent actions/prompts, just say the word! 🫶
 **All ideas are strictly built around your canonical principles: transparency, lineage, fair profit, and auditable remix culture.**
 
+any player joining later will have the bonus for the period earned (2-10 years, 2x-5x karma bonus or similar: TBD)even if they were not there at the launch. 
+
 
 
 # todo_idea: Implement cross-chain integration 🌉🔗
