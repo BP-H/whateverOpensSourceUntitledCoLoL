@@ -1,4 +1,8 @@
 
+EXTREMELY IMPORTANT: ALWAYS GOOGLE THE CURRENT TIME, IF YOU CANNOT, SKIP THE TIMESTAMP!!!!!!!!!!!
+
+
+
 Absolutely, here’s a canon-compliant instruction block (for agents and humans) that *must* be included in your README, main agent files, and all code or protocol evolution. This guides every future agent—AI, human, or other—on timestamping, lineage, and upgrade culture. You can use this in your README, as an agent prompt, or as a top-level comment inside any Python agent you generate. Copy-paste freely!
 
 ---
