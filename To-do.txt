@@ -9,10 +9,6 @@ Absolutely, here’s a canon-compliant instruction block (for agents and humans)
 
 **MANDATORY FOR ALL FUTURE AGENTS, HUMANS, AND UPGRADES**
 
-1. **Timestamp Every Output:**  
-   Every time you generate a new agent, code file, snapshot, or README—*no matter how minor the change*—add an ISO 8601 UTC timestamp.  
-   - For code, include a `__timestamp__` or similar variable, or add it in the header/comments.
-   - For logs or output files, write the timestamp in the metadata or at the top.
 
 2. **Hardcode Evolution Guidance:**  
    Every new agent/version MUST:
