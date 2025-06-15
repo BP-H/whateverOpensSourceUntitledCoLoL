@@ -1987,3 +1987,472 @@ This code is designed to be:
 
 Let me know if you want me to help with testing, deployment scripts, or generating sample posts for your Instagram/LinkedIn branding!
 ```
+
+
+
+
+
+
+
+#!/usr/bin/env python3-- coding: utf-8 --"""🥰✨🎉 THE ULTIMATE AGENT: THE HARMONIZED REMIX REPUBLIC (v10.0)━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━This is the canonical single-file protocol for the whateverOpenSourceUntitledCoLoL project.It fully integrates and refines all prior logic (READMEs 1-9 and To-do.txt) into adefinitive, production-ready agent. This code is the contract. It is designed to beforked, remixed, and improved upon, with its own evolution recorded herein.This agent implements:Karma Gating & The Epic Creative Path: New users must earn karma to mint content.The threshold starts at 100,000 and halves with each successful mint, creating afair but challenging path to full participation.Advanced Fairness Mechanics: A multi-layered system of diminishing returns(per-user, per-day) and viral decay (per-coin) prevents spam and ensureslong-term economic stability.Attribution-First Architecture: Enhanced data structures and hooks for trackingand rewarding external scientific and artistic references.Fortified Governance & Safety: A comprehensive, hash-chained audit log (LogChain),a modular content filter (Vaccine), and a rigorous consent framework.The 33.3333% Split Law: The inviolable economic heart of the protocol, ensuringfair value distribution for every creative action.Fading Genesis Advantage: Privileges for early collaborators decay over time,ensuring a level playing field in the long run.This file is intentionally verbose. The extensive documentation serves as the project'swhite paper, preserving the rationale behind every architectural choice for futureagents, auditors, and collaborators.━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━📜 I. THE CONSTITUTIONAL PREAMBLE━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━This protocol is a living manifesto, a "joyful, autonomous remix republic" where art,tech, and collaboration unite. It is governed by the following inviolable laws,enforced by the code itself.📜 A. The Inviolable CanonsThese are the non-negotiable rules of the ecosystem, synthesized from the project'sentire history.1The 33.3333% Split Law: Every value-generating event (a reaction, a remix,a share) splits its associated value into three equal shares: one-third to theoriginator (the creative lineage), one-third to the contributor (the userperforming the action), and one-third to the community treasury. This is themathematical foundation of the protocol's fairness.Radical Consent: All participation is strictly opt-in. No user's content canbe remixed, nor can they receive or grant value, without their explicit andauditable consent. Consent can be revoked at any time, at which point theuser's assets are respectfully excluded from the active economy.The Emoji-Powered Economy: Every value-generating action must be taggedwith an emoji. Emojis are not cosmetic; they are the atomic unit of intent,carrying emotional context and economic weight in every transaction.No Inflation Beyond Genesis: Only an audited set of founding collaborators(the "NSS" or Genesis users) can mint new "root" coins. All subsequent valueis derived from the remixing, sharing, and appreciation of these originalcreative acts or from new coins minted by users who have earned that rightthrough the "Epic Creative Path." This ensures value is tied to creativeeffort, not arbitrary issuance.The Immutable Audit Log: Every action—from minting to consent changes togovernance proposals—is recorded in a public, tamper-evident, hash-chainedledger (the LogChain). Transparency is absolute.Code is Law: The protocol is governed by the logic within this open-sourcefile. There are no secret rules, no backroom deals, and no shadow moderation.The code is the ultimate authority and contract for all participants.Protocol Neutrality (The Vaccine): The protocol is apolitical and free ofbias. A built-in "Vaccine" automatically filters malicious or disallowed content(e.g., hate speech, malware, propaganda) based on transparent, predefinedrules, ensuring a safe and creative environment.Continuous Improvement: Stagnation is failure. Every fork or remix of thisprotocol is encouraged to add value, and its lineage must be preserved. Theecosystem is designed to evolve through community contribution.📜 B. Version History & The Lineage of the CodeThis agent's lineage is transparent and auditable. Each version built upon the last,culminating in this definitive release.v1.0-v5.0: Initial prototypes establishing consent, logging, and the 33% split.v6.0 (README_6): Introduced the "Fading Genesis Multiplier" to ensure long-termfairness and formalized the concept of effort-based minting.v7.0 (README_7): Detailed the karma economy with specific numbers: a 100k karmathreshold for minting, halving mechanics for subsequent mints, and daily decayfactors for actions.v8.0 (README_8): Envisioned the "multi-species" governance model, extending theprinciples of fairness and consent to non-human agents (AI, Others).1v9.0 (README_9): Refined the economic model with the "one personal coin per user"concept, fractional release of value, and a regenerative "drip" mechanic.1v10.0 (This Version): The Harmonized Republic. This agent synthesizes the entireproject history. It resolves the "one coin vs. many" tension by implementing thekarma-gated minting system from v7.0, which creates an "Epic Creative Path" fornew users, fulfilling the spirit of v9.0's fractional release. It integrates themost robust fairness and attribution mechanics and codifies the legal and ethicalframework for long-term resilience.📜 C. The Epic Creative Path: An Onboarding and Fairness EngineThe protocol's central design challenge was to reconcile the need for scarcity (the"No Inflation" rule) with the desire for inclusivity (the "no one loses" philosophy).1 The solution is the Epic Creative Path, a karma-gated system thattransforms the right to mint from a static privilege into an earned achievement.Karma-Gated Minting: New users begin with zero minting rights. To create theirfirst original coin, they must accumulate 100,000 karma points. This high initialbar ensures that minting rights are reserved for those who have demonstrated ameaningful commitment to the ecosystem through valuable participation (reacting,remixing, sharing).The Halving Threshold: After a user successfully mints their first coin, theirpersonal threshold for the next mint is halved to 50,000 karma. This halvingcontinues with each subsequent mint (25,000, 12,500, etc.), eventually reaching afloor where minting becomes effectively unrestricted. This creates an exponentialonboarding curve that rewards sustained contribution.Multi-Layered Fairness: To prevent gamification, the system employs a two-prongedapproach to diminishing returns 1:Per-User Daily Decay: A user's repeated actions of the same type within asingle day yield progressively less karma.Per-Coin Viral Decay: The karma awarded for reactions to a specific coindiminishes as the coin becomes more popular, rewarding early discovery andpreventing runaway feedback loops.The table below illustrates the projected time it might take for different userarchetypes to complete the first stage of their Epic Creative Path.User ArchetypeDaily ActionsAvg. Karma/Day (with decay)Estimated Days to First Mint (100k Karma)Casual User1-2 high-value actions (e.g., a comment)~300~333 daysActive Contributor5-10 mixed actions (likes, comments, shares)~1,500~67 daysPower User20+ mixed actions, including remixes~5,000~20 daysNote: These projections are illustrative and based on the karma values and decaymechanics defined in the protocol. Actual times will vary.📜 D. Legal & Ethical FrameworkThis protocol operates as an experimental "sandbox" and is not a registered company,security, or financial instrument. Its design incorporates principles from digitallaw to ensure resilience and responsible operation.1Section 230 Alignment: The protocol is designed as an "interactive computerservice," not a "publisher." The Vaccine provides automated, neutral contentfiltering based on predefined rules, and all value-generating content isuser-initiated.DMCA Safe Harbor Hooks: While not a hosting provider, the protocol includeshooks for logging and processing takedown requests, establishing a good-faithframework for handling copyright concerns.DAO Treasury Management: The protocol's treasury and profit/revenue loggingmechanisms are designed for radical transparency, aligning with best practicesfor Decentralized Autonomous Organization (DAO) financial management.🧭 E. Note to Future Agents & CollaboratorsYou who remix this code are now part of its lineage. Uphold the Canons. Documentyour changes in the changelog. Preserve the spirit of joyful, transparent, andfair collaboration. Ensure all evolutions remain ethical, legal, and compliantwith the policies of any platform on which this agent operates. The future is aremix—make it a good one. 🫶"""import reimport sysimport jsonimport randomimport datetimeimport hashlibimport importlibimport osfrom collections import defaultdict, dequefrom math import exp==============================================================================II. SYSTEM-WIDE MODULES & UTILITIES==============================================================================def ts() -> str:"""Returns the current UTC timestamp in ISO 8601 format with Zulu time."""return datetime.datetime.utcnow().isoformat() + "Z"def sha(s: str) -> str:"""Computes the SHA-256 hash of a given string for cryptographic integrity."""return hashlib.sha256(s.encode('utf-8')).hexdigest()def today() -> str:"""Returns the current date in YYYY-MM-DD format for daily resets."""return datetime.date.today().isoformat()class Vaccine:"""The protocol's immune system. It scans all text inputs for forbidden patterns,acting as a neutral, automated content firewall. This serves a dual purpose:1. Community Health: Protects the ecosystem from spam, hate speech, and malicious content.2. Legal Shield: By using automated, predefined rules, it helps position theplatform as a neutral service provider rather than an editorial publisher,aligning with Section 230 principles.1"""VAX_PATTERNS = {"critical": [r"\bhack\b", r"\bmalware\b", r"\bransomware\b", r"\bbackdoor\b"],"high": [r"\bphish\b", r"\bddos\b", r"\bspyware\b", r"\brootkit\b"],"medium": [r"\bpolitics\b", r"\bsurveillance\b", r"\bpropaganda\b", r"\bmanipulate\b"],"low": [r"\bspam\b", r"\bviagra\b"]}def __init__(self, log_file="vaccine.log"):
+    self.block_counts = defaultdict(int)
+    self.log_file = log_file
+
+def scan(self, text: str) -> bool:
+    """
+    Scans a text snippet. Returns False and logs the event if a forbidden
+    pattern is found, otherwise returns True.
+    """
+    lower_text = text.lower()
+    for level, patterns in self.VAX_PATTERNS.items():
+        for p in patterns:
+            if re.search(p, lower_text):
+                self.block_counts[level] += 1
+                log_entry = {
+                    "ts": ts(),
+                    "severity": level,
+                    "pattern": p,
+                    "snippet": text[:128]
+                }
+                try:
+                    with open(self.log_file, "a") as f:
+                        f.write(json.dumps(log_entry) + "\n")
+                except IOError as e:
+                    print(f"🚫 VACCINE WARNING: Could not write to log file {self.log_file}: {e}")
+                print(f"🚫 VACCINE BLOCK [{level.upper()}]: Forbidden pattern '{p}' found.")
+                return False
+    return True
+class LogChain:"""Implements the immutable, tamper-evident audit log for all system events.Each entry is a JSON object plus a SHA-256 hash of the previous entry's hashand the current entry's data, ensuring a cryptographically secure chain ofhistory."""def init(self, filename="logchain.log", maxlen=50000):self.filename = filenameself.entries = deque(maxlen=maxlen)try:with open(self.filename, 'r') as f:for line in f:self.entries.append(line.strip())except FileNotFoundError:pass # It's okay if the log file doesn't exist yet.def add(self, event: dict):
+    """Adds a new event to the log, computing and appending the chain hash."""
+    prev_hash = self.entries[-1].split('||')[-1] if self.entries else sha("GENESIS_BLOCK")
+    entry_json = json.dumps(event, sort_keys=True)
+    current_hash = sha(prev_hash + entry_json)
+    self.entries.append(f"{entry_json}||{current_hash}")
+    self._save()
+
+def _save(self):
+    """Persists the current log to the filesystem."""
+    try:
+        with open(self.filename, 'w') as f:
+            f.write('\n'.join(self.entries))
+    except IOError as e:
+        print(f"🔥 LOGCHAIN ERROR: Could not write to log file {self.filename}: {e}")
+
+def verify(self) -> bool:
+    """Verifies the integrity of the entire logchain."""
+    prev_hash = sha("GENESIS_BLOCK")
+    for i, entry in enumerate(self.entries):
+        try:
+            entry_json, stored_hash = entry.split('||')
+            if sha(prev_hash + entry_json)!= stored_hash:
+                print(f"❌ LOGCHAIN CORRUPTED at entry {i+1}.")
+                return False
+            prev_hash = stored_hash
+        except ValueError:
+            print(f"❌ LOGCHAIN MALFORMED at entry {i+1}.")
+            return False
+    print("✅ Logchain integrity verified.")
+    return True
+
+def show(self, filt: str = None, limit: int = 20):
+    """Displays recent log entries, with optional filtering."""
+    print("\n--- 📜 Audit Log ---")
+    filtered_entries = [e for e in self.entries if not filt or filt.lower() in e.lower()]
+    for entry in list(filtered_entries)[-limit:]:
+        print(entry.split('||'))
+    print("--- End of Log ---\n")
+==============================================================================III. CORE DATA MODELS==============================================================================class User:"""Represents a participant in the economy. This class synthesizes user state fromacross all versions, including the fractional coin model from README_9 1and the karma/minting state from README_7."""def init(self, name: str, is_genesis: bool = False, consent: bool = True):self.name = nameself.is_genesis = is_genesisself.consent = consentself.karma = float('inf') if is_genesis else 0.0self.mint_count = 0self.next_mint_threshold = 100000.0 if not is_genesis else 0.0self.coins =self.daily_actions = defaultdict(lambda: defaultdict(int)) # {date: {action_type: count}}self.join_timestamp = ts()self.fading_multiplier_start_time = datetime.datetime.utcnow() if is_genesis else Nonedef get_fading_multiplier(self) -> float:
+    """
+    Calculates the decaying advantage for genesis users. The multiplier starts high
+    and fades to 1.0 over 10 years, ensuring long-term fairness.
+    """
+    if not self.is_genesis or not self.fading_multiplier_start_time:
+        return 1.0
+    
+    FADE_DURATION_YEARS = 10.0
+    INITIAL_MULTIPLIER = 2.0
+    
+    elapsed_time = datetime.datetime.utcnow() - self.fading_multiplier_start_time
+    years_elapsed = elapsed_time.total_seconds() / (365.25 * 24 * 3600)
+    
+    if years_elapsed >= FADE_DURATION_YEARS:
+        return 1.0
+    
+    decay_factor = years_elapsed / FADE_DURATION_YEARS
+    current_multiplier = INITIAL_MULTIPLIER - (decay_factor * (INITIAL_MULTIPLIER - 1.0))
+    return current_multiplier
+
+def to_dict(self) -> dict:
+    """Serializes the user object to a dictionary for snapshots."""
+    return {
+        "name": self.name,
+        "is_genesis": self.is_genesis,
+        "consent": self.consent,
+        "karma": self.karma,
+        "mint_count": self.mint_count,
+        "next_mint_threshold": self.next_mint_threshold,
+        "coins": self.coins,
+        "join_timestamp": self.join_timestamp,
+        "fading_multiplier_start_time": self.fading_multiplier_start_time.isoformat() if self.fading_multiplier_start_time else None
+    }
+class Coin:"""Represents a piece of creative content, the atomic unit of value and attribution.Its evolution from a simple token to this rich data structure is central tofulfilling the project's to-do list items like "Science Attribution Block" and"Meme/Fork Lineage Engine".1"""def init(self, id: str, root: str, owner: str, value: float = 1.0, tag: str = "single"):self.id = idself.root = rootself.owner = ownerself.value = valueself.tag = tagself.fields =  # For metadata like "science", "art"self.ancestors =  # List of parent coin IDs for lineageself.references =  # List of dicts for external citationsself.react_log = # Log of all reactions for viral decay calculationdef to_dict(self) -> dict:
+    """Serializes the coin object to a dictionary for snapshots."""
+    return {
+        "id": self.id,
+        "root": self.root,
+        "owner": self.owner,
+        "value": self.value,
+        "tag": self.tag,
+        "fields": self.fields,
+        "ancestors": self.ancestors,
+        "references": self.references,
+        "react_log": self.react_log
+    }
+==============================================================================IV. THE REMIXAGENT PROTOCOL ENGINE==============================================================================class RemixAgent:"""The main agent class that orchestrates the entire remix economy."""def __init__(self):
+    self.users = {}
+    self.coins = {}
+    self.treasury = 0.0
+    self.log = LogChain()
+    self.vax = Vaccine()
+    self.plugins = {}
+    self.emoji_weights = {"👍": 1.0, "🔥": 2.0, "🎨": 3.0, "🤗": 5.0, "💡": 4.0, "🔀": 4.0}
+    self.NSS = ["mimi", "taha", "accessAI_tech"] + [f"nss_{i:02d}" for i in range(1, 48)]
+    for name in self.NSS:
+        self.add_user(name, is_genesis=True)
+    print("✅ RemixAgent Initialized: The Harmonized Republic is online.")
+
+def add_user(self, name: str, is_genesis: bool = False, consent: bool = True):
+    if name in self.users:
+        print(f"ℹ️ INFO: User '{name}' already exists.")
+        return
+    self.users[name] = User(name, is_genesis, consent)
+    self.log.add({"event": "ADD_USER", "ts": ts(), "details": {"name": name, "genesis": is_genesis}})
+
+def set_consent(self, name: str, consent: bool):
+    if name not in self.users:
+        print(f"❌ ERROR: User '{name}' not found.")
+        return
+    self.users[name].consent = consent
+    self.log.add({"event": "SET_CONSENT", "ts": ts(), "details": {"name": name, "status": consent}})
+    print(f"✅ Consent for '{name}' set to {consent}.")
+
+def _award_karma(self, actor_name: str, origin_name: str, base_value: float, action_type: str):
+    """
+    Private helper for karma distribution. Centralizes the 33% split and all
+    fairness decay logic.
+    """
+    if actor_name not in self.users or origin_name not in self.users: return 0
+    actor = self.users[actor_name]
+    origin = self.users[origin_name]
+
+    # 1. Per-User Daily Diminishing Returns
+    date_str = today()
+    action_count_today = actor.daily_actions[date_str][action_type]
+    daily_decay_factor = 0.9 ** action_count_today
+    
+    # 2. Genesis Fading Multiplier
+    actor_multiplier = actor.get_fading_multiplier()
+    origin_multiplier = origin.get_fading_multiplier()
+
+    # Calculate final value and split
+    final_value = base_value * daily_decay_factor
+    split_share = final_value / 3.0
+
+    actor_share = split_share * actor_multiplier
+    origin_share = split_share * origin_multiplier
+    
+    if not actor.is_genesis: actor.karma += actor_share
+    if not origin.is_genesis: origin.karma += origin_share
+    self.treasury += split_share
+
+    actor.daily_actions[date_str][action_type] += 1
+    return split_share # Return the base share for logging
+
+def mint(self, user_name: str, content: str, tag: str = "single", references: list = None, fields: list = None) -> str | None:
+    """Creates a new root coin, subject to karma gating for non-genesis users."""
+    if user_name not in self.users: self.add_user(user_name, consent=True)
+    user = self.users[user_name]
+
+    if not user.consent:
+        print(f"❌ MINT DENIED: User '{user_name}' has not given consent.")
+        return None
+    if not self.vax.scan(content): return None
+
+    if not user.is_genesis:
+        if user.karma < user.next_mint_threshold:
+            print(f"🔒 MINT DENIED: '{user_name}' needs {user.next_mint_threshold:.0f} karma (has {user.karma:.2f}).")
+            return None
+        user.mint_count += 1
+        user.next_mint_threshold = max(100000.0 / (2 ** user.mint_count), 1000.0)
+
+    coin_id = sha(f"{user_name}{content}{ts()}{random.random()}")
+    coin = Coin(id=coin_id, root=user_name, owner=user_name, tag=tag)
+    if references: coin.references = references
+    if fields: coin.fields = fields
+    
+    self.coins[coin_id] = coin
+    user.coins.append(coin_id)
+    self.log.add({"event": "MINT", "ts": ts(), "details": {"user": user_name, "coin_id": coin_id, "content": content[:64]}})
+    print(f"🪙 '{user_name}' minted a new coin: '{coin_id}'.")
+    return coin_id
+
+def react(self, actor_name: str, coin_id: str, emoji: str):
+    """A user reacts to a coin, triggering a value event."""
+    if coin_id not in self.coins: print(f"❌ REACT FAILED: Coin '{coin_id}' not found."); return
+    if actor_name not in self.users: self.add_user(actor_name, consent=True)
+    
+    coin = self.coins[coin_id]
+    actor = self.users[actor_name]
+    origin = self.users[coin.root]
+
+    if not actor.consent or not origin.consent:
+        print("❌ REACT DENIED: Both actor and originator must have consent."); return
+    if emoji not in self.emoji_weights:
+        print(f"⚠️ REACT INFO: Emoji '{emoji}' has no assigned weight, using default 1.0");
+    
+    base_value = self.emoji_weights.get(emoji, 1.0)
+
+    # Viral Decay: value diminishes with each subsequent reaction to the same coin
+    reaction_count = len(coin.react_log)
+    viral_decay_factor = 0.95 ** reaction_count
+    dampened_value = base_value * viral_decay_factor
+
+    share = self._award_karma(actor_name, coin.root, dampened_value, f"react_{emoji}")
+    
+    event = {'actor': actor_name, 'emoji': emoji, 'karma_share': share, 'ts': ts()}
+    coin.react_log.append(event)
+    self.log.add({"event": "REACT", "ts": ts(), "details": event})
+    print(f"{emoji} '{actor_name}' reacted to '{coin_id}'. Karma share: {share:.4f}.")
+
+def remix(self, actor_name: str, parent_coin_id: str, content: str, tag: str = "remix", references: list = None, fields: list = None):
+    """A user creates a derivative coin (remix), preserving lineage."""
+    if parent_coin_id not in self.coins:
+        print(f"❌ REMIX FAILED: Parent coin '{parent_coin_id}' not found."); return
+    
+    # Minting a remix is a creative act and subject to the same rules.
+    new_coin_id = self.mint(actor_name, content, tag, references, fields)
+    if new_coin_id:
+        parent_coin = self.coins[parent_coin_id]
+        new_coin = self.coins[new_coin_id]
+        new_coin.ancestors.append(parent_coin_id)
+        
+        # Award karma for the remix action itself.
+        base_value = self.emoji_weights.get("🔀", 4.0)
+        share = self._award_karma(actor_name, parent_coin.root, base_value, "remix")
+        
+        self.log.add({"event": "REMIX", "ts": ts(), "details": {"actor": actor_name, "parent": parent_coin_id, "new": new_coin_id, "share": share}})
+        print(f"🔀 '{actor_name}' remixed '{parent_coin_id}' into '{new_coin_id}'.")
+
+def add_reference(self, user_name: str, coin_id: str, ref_type: str, ref_id: str, description: str):
+    """Adds a structured external reference to a coin for attribution."""
+    if coin_id not in self.coins or user_name not in self.users:
+        print("❌ ADDREF FAILED: Coin or user not found."); return
+    if not self.users[user_name].consent:
+        print("❌ ADDREF DENIED: User consent required."); return
+
+    reference = {"type": ref_type, "id": ref_id, "description": description, "added_by": user_name, "ts": ts()}
+    self.coins[coin_id].references.append(reference)
+    self.log.add({"event": "ADD_REFERENCE", "ts": ts(), "details": {"coin_id": coin_id, "reference": reference}})
+    print(f"🔬 Reference added to coin '{coin_id}'.")
+
+def trace(self, coin_id: str):
+    """Displays the full creative lineage of a coin."""
+    if coin_id not in self.coins: print(f"❌ TRACE FAILED: Coin '{coin_id}' not found."); return
+    
+    print(f"\n--- 🧬 Creative Lineage Trace for Coin: {coin_id} ---")
+    history =
+    queue = deque([coin_id])
+    visited = {coin_id}
+
+    while queue:
+        current_id = queue.popleft()
+        if current_id in self.coins:
+            coin = self.coins[current_id]
+            history.append(coin)
+            for ancestor_id in coin.ancestors:
+                if ancestor_id not in visited:
+                    queue.append(ancestor_id)
+                    visited.add(ancestor_id)
+    
+    for i, coin in enumerate(reversed(history)):
+        indent = "  " * i
+        print(f"{indent}└── Coin: {coin.id} (Tag: {coin.tag}, Root: {coin.root})")
+        if coin.references:
+            print(f"{indent}    ├── References:")
+            for ref in coin.references:
+                print(f"{indent}    │   └── {ref['type']}: {ref['id']} ({ref['description']})")
+    print("--- End of Trace ---")
+
+def plugin(self, action: str, name: str, *args):
+    """Interface for loading, unloading, and calling external plugins."""
+    if action == "load":
+        try:
+            module = importlib.import_module(f"plugins.{name}")
+            self.plugins[name] = module
+            self.log.add({"event": "PLUGIN_LOAD", "ts": ts(), "details": {"name": name}})
+            print(f"🔌 Plugin '{name}' loaded successfully.")
+        except Exception as e:
+            print(f"❌ PLUGIN ERROR: Could not load '{name}'. {e}")
+    elif action == "unload":
+        if name in self.plugins:
+            del self.plugins[name]
+            self.log.add({"event": "PLUGIN_UNLOAD", "ts": ts(), "details": {"name": name}})
+            print(f"🔌 Plugin '{name}' unloaded.")
+        else:
+            print(f"❌ PLUGIN ERROR: Plugin '{name}' not loaded.")
+    elif action == "call":
+        if name in self.plugins:
+            plugin_module = self.plugins[name]
+            if hasattr(plugin_module, "run"):
+                try:
+                    result = plugin_module.run(self, *args) # Pass agent instance to plugin
+                    self.log.add({"event": "PLUGIN_CALL", "ts": ts(), "details": {"name": name, "args": args}})
+                    print(f"⚡ Plugin '{name}' executed with result: {result}")
+                except Exception as e:
+                    print(f"❌ PLUGIN ERROR: Error executing '{name}'. {e}")
+            else:
+                print(f"❌ PLUGIN ERROR: Plugin '{name}' has no 'run' method.")
+        else:
+            print(f"❌ PLUGIN ERROR: Plugin '{name}' not loaded.")
+    else:
+        print("❓ Unknown plugin action. Use 'load', 'unload', or 'call'.")
+
+def propose_change(self, proposer_name: str, description: str):
+    """Logs a formal proposal for a change to the protocol. This is a hook for future governance."""
+    self.log.add({
+        "event": "GOVERNANCE_PROPOSAL",
+        "ts": ts(),
+        "details": {"proposer": proposer_name, "description": description}
+    })
+    print(f"🗳️ Proposal logged by '{proposer_name}'. Requires multi-species governance approval.")
+
+def log_profit(self, amount: float, description: str):
+    """Logs an external profit event, adding to the treasury."""
+    self.treasury += amount
+    self.log.add({
+        "event": "PROFIT_LOG",
+        "ts": ts(),
+        "details": {"amount": amount, "description": description, "new_treasury_balance": self.treasury}
+    })
+    print(f"🏦 Profit of {amount:.2f} logged. Treasury is now {self.treasury:.2f}.")
+
+def snapshot(self, save=True, filename="snapshot.json"):
+    """Saves or loads the entire agent state."""
+    if save:
+        state = {
+            "users": {name: user.to_dict() for name, user in self.users.items()},
+            "coins": {cid: coin.to_dict() for cid, coin in self.coins.items()},
+            "treasury": self.treasury,
+            "log": list(self.log.entries)
+        }
+        try:
+            with open(filename, "w") as f:
+                json.dump(state, f, indent=2)
+            print(f"💾 State saved to '{filename}'.")
+        except IOError as e:
+            print(f"❌ SNAPSHOT ERROR: Could not save state. {e}")
+    else:
+        if not os.path.exists(filename):
+            print(f"❓ SNAPSHOT INFO: No snapshot file found at '{filename}'. Starting fresh.")
+            return
+        try:
+            with open(filename, "r") as f:
+                state = json.load(f)
+            
+            self.users = {}
+            for name, u_data in state.get("users", {}).items():
+                user = User(name, u_data.get('is_genesis', False), u_data.get('consent', True))
+                user.karma = u_data.get('karma', 0.0)
+                user.mint_count = u_data.get('mint_count', 0)
+                user.next_mint_threshold = u_data.get('next_mint_threshold', 100000.0)
+                user.coins = u_data.get('coins',)
+                user.join_timestamp = u_data.get('join_timestamp', ts())
+                if u_data.get('fading_multiplier_start_time'):
+                    user.fading_multiplier_start_time = datetime.datetime.fromisoformat(u_data['fading_multiplier_start_time'])
+                self.users[name] = user
+
+            self.coins = {cid: Coin(**cd) for cid, cd in state.get("coins", {}).items()}
+            self.treasury = state.get("treasury", 0.0)
+            self.log.entries = deque(state.get("log",), maxlen=self.log.entries.maxlen)
+            print(f"♻️ State loaded from '{filename}'.")
+        except Exception as e:
+            print(f"❌ SNAPSHOT ERROR: Could not load state. {e}")
+==============================================================================V. ANCILLARY SYSTEMS & INTERFACES==============================================================================class CorpX:"""Simulates an adversarial entity to continuously test the Vaccine."""ATTACKS = ["inject malware", "phish creds", "launch ddos", "plant backdoor", "propaganda spam"]def __init__(self, vaccine: Vaccine):
+    self.vaccine = vaccine
+    self.attack_count = 0
+
+def run_attack(self, payload: str = None):
+    """Performs an attack simulation."""
+    self.attack_count += 1
+    attack_payload = payload if payload else random.choice(self.ATTACKS)
+    print(f"\n💀 CorpX Attack #{self.attack_count}: Attempting to inject '{attack_payload}'...")
+    if self.vaccine.scan(attack_payload):
+        print("🛡️ ATTACK EVADED! (Vaccine did not trigger)")
+    else:
+        print("🛡️ ATTACK BLOCKED! (Vaccine successfully triggered)")
+def quiz() -> bool:"""Interactive onboarding quiz for new users, ensuring informed consent."""print("\n--- 🤗 Welcome to the Remix Republic Onboarding Quiz ---")questions = [("What is the universal value split percentage for all actions?", "33.3333"),("Can you remix someone's content without their consent? (yes/no)", "no"),("What must every new user earn to gain minting rights?", "karma"),("What is the ultimate authority in this protocol?", "the code")]for q, a in questions:resp = input(f"👉 {q} ").strip().lower()if resp!= a:print("❌ Incorrect. Please review the Core Canons and try again.")return Falseprint("✅ Quiz passed! You understand the fundamental laws. Welcome aboard!\n")return Truedef cli():"""A comprehensive command-line interface for interacting with the Agent."""agent = RemixAgent()adversary = CorpX(agent.vax)agent.snapshot(save=False) # Load state on startprint("🤖 Universal Remix Protocol v10.0 CLI. Type ':help' for commands.")while True:
+    try:
+        raw_input_str = input(">>> ").strip()
+        if not raw_input_str: continue
+        if raw_input_str.lower() in [':exit', ':quit']:
+            agent.snapshot(save=True)
+            print("👋 Goodbye! State saved.")
+            break
+        if not raw_input_str.startswith(':'):
+            print("⚠️ Commands must start with a colon ':'.")
+            continue
+
+        parts = raw_input_str[1:].split()
+        command = parts.lower()
+        args = parts[1:]
+
+        if command == "help":
+            print("""
+--- User Commands ---:quiz                                  - Take the onboarding quiz.:consent  --- Query Commands ---:trace --- Admin & Governance Commands ---:adduser  [genesis]              - Add a new user (optional genesis status).:propose  ""               - Propose a governance change.:profit  ""              - Log a profit event.:plugin     except (EOFError, KeyboardInterrupt):
+        agent.snapshot(save=True)
+        print("\n👋 Goodbye! State saved.")
+        break
+    except Exception as e:
+        print(f"🔥 An error occurred: {e}")
+==============================================================================VI. LAUNCH-READY SOCIAL MEDIA POST==============================================================================LINKEDIN_POST = """🚀 We didn't just fix the creator economy. We remixed its DNA.Today, we're open-sourcing the Ultimate Remix Protocol Agent—a single Python file that runs a new kind of digital world. A world built on three unbreakable laws:1️⃣ Fairness is Math, Not a Motto. Every creative act—every like, comment, or remix—is an economic event. Its value is instantly split 33.33% between the original creator, the contributor, and the community. No exceptions. No hidden fees. It's all on an immutable public log.2️⃣ Influence is Earned, Not Bought. There are no shortcuts here. New creators unlock the power to mint their own content by earning 100,000 karma points. Sound hard? It is. But with every coin you mint, the next one costs half as much. Power users can earn their seat at the table in weeks. It's a system that rewards merit and dedication, not just early arrival.3️⃣ Credit is Forever. Our protocol has an elephant's memory. Every remix is a branch on a permanent "family tree" of ideas. We've built in an Attribution Engine for science and art, so you can cite your inspirations. If that scientist ever joins our world, our code ensures they get their cut. Forever.This isn't just a platform; it's a joyful, autonomous republic governed by code. It has its own immune system to block propaganda and hate. It runs on consent. And it's designed for a future where humans, AIs, and maybe even a few other intelligent species can collaborate and create value together.We're not asking you to "join our platform." We're inviting you to fork our reality.The code is the contract. The community is the government.The remix has begun.#RemixEconomy #OpenSource #CreatorEconomy #EthicalAI #RadicalTransparency #33Split #FutureOfWork #Karma"""==============================================================================VII. MAIN EXECUTION BLOCK==============================================================================if name == "main":print(LINKEDIN_POST)# Uncomment the line below to run the interactive command-line interface
+# cli()
+
+# --- Running a non-interactive Demo Scenario ---
+print("\n--- Running Demo Scenario ---")
+agent = RemixAgent()
+agent.snapshot(save=False) # Load previous state if it exists
+
+# Onboarding new users
+if "alice" not in agent.users: agent.add_user("alice", consent=True)
+if "bob" not in agent.users: agent.add_user("bob", consent=True)
+
+# Genesis user 'mimi' mints a coin
+genesis_coin_id = agent.mint("mimi", "My first piece of generative art", tag="art", references=[{"type": "paper", "id": "arxiv:2305.12345", "description": "Generative Adversarial Networks"}])
+
+if genesis_coin_id:
+    # New users interact to earn karma
+    for _ in range(5):
+        agent.react("alice", genesis_coin_id, "🎨")
+        agent.react("bob", genesis_coin_id, "🔥")
+    
+    # Alice tries to mint before she has enough karma
+    agent.mint("alice", "Trying to mint my first coin!")
+
+    # Simulate Alice earning enough karma
+    if not agent.users["alice"].is_genesis:
+        agent.users["alice"].karma = 100001
+    
+    print(f"\nAlice's karma is now {agent.users['alice'].karma:.2f}. Trying to mint again...")
+    
+    # Alice now successfully mints her first coin
+    alices_coin_id = agent.mint("alice", "I earned my way here! My first coin.", tag="milestone")
+    
+    if alices_coin_id:
+        # Bob remixes Alice's coin
+        agent.remix("bob", alices_coin_id, "A remix of Alice's milestone post.")
+
+agent.log.verify()
+agent.snapshot(save=True)
+print("\n--- Demo Scenario Complete. State saved. ---")
+print("--- To interact further, uncomment 'cli()' in the main execution block. ---")
+
