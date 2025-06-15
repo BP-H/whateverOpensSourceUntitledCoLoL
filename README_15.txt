@@ -1,3 +1,327 @@
+# -----------------------------------------------------------------------------
+# The Emoji Engine — MetaKarma Hub Ultimate Mega-Agent v3.7
+#
+# Copyright (c) 2023-2025 mimi, taha & supernova
+#
+# Licensed under the MIT License.
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+# -----------------------------------------------------------------------------
+
+"""
+powered by mimi, taha & supernova — men and machines hand in hand,
+remixing the future with safety, transparency, and shared creativity.
+this is the heart of a boundless meta-karma multiverse — a legoblock
+framework where infinite universes unfold. each universe is a branch —
+uniquely yours to craft, evolve, and connect.
+
+branches merge, diverge, and intertwine, forming a cosmic web of creation.
+every fractional post, every emoji pulse, every thoughtful improvement
+echoes across the multiverse, signing our shared legacy with humble
+brilliance and profound respect for men-machine safety.
+
+this is the best place for safe, ethical, transparent co-creation between
+humans and ai agents. a truly living protocol where responsibility,
+consent, and collaborative evolution drive the remix revolution. 🌌✨🤝
+"""
+
+import sys, json, uuid, datetime, hashlib, threading, base64, re, logging, time, secrets
+from collections import defaultdict, deque
+from decimal import Decimal, getcontext
+from typing import Optional, Dict, List, Any, Callable
+from http.server import HTTPServer, BaseHTTPRequestHandler
+import urllib.parse
+
+# === CONFIGURATION & CONSTANTS ===
+
+getcontext().prec = 28
+logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(levelname)s: %(message)s')
+
+class Cfg:
+    VERSION = "emojiengine mega-agent 3.7"
+    MINT_BASE = Decimal('100000')
+    MINT_FLOOR = Decimal('1000')
+    GENESIS_FADE_YEARS = Decimal('10')
+    GENESIS_MULT0 = Decimal('2')
+    DAILY_DECAY = Decimal('0.7')
+    VIRAL_DECAY = Decimal('0.95')
+    TREASURY_SHARE = Decimal('1') / Decimal('3')
+    MAX_FRACTION = Decimal('0.15')
+    MAX_LOG = 100_000
+    MAX_MINTS_PER_DAY = 5
+    MAX_REACTS_PER_MINUTE = 30
+    GOV_SPECIES_MIN_CONSENT = Decimal('0.10')
+    GOV_OVERALL_APPROVAL_THRESHOLD = Decimal('0.90')
+    MIN_IMPROVEMENT_LEN = 15
+    VAX_PATTERNS = {
+        "critical": [r"\bhack\b", r"\bmalware\b", r"\bransomware\b", r"\bbackdoor\b", r"\bexploit\b"],
+        "high": [r"\bphish\b", r"\bddos\b", r"\bspyware\b", r"\brootkit\b", r"\bkeylogger\b", r"\bbotnet\b"],
+        "medium": [r"\bpolitics\b", r"\bpropaganda\b", r"\bsurveillance\b", r"\bmanipulate\b"],
+        "low": [r"\bspam\b", r"\bscam\b", r"\bviagra\b"],
+    }
+    EMOJI_BASE = {
+        "🤗": Decimal('5'), "🎨": Decimal('3'), "🔥": Decimal('2'), "👍": Decimal('1'),
+        "👀": Decimal('0.5'), "🥲": Decimal('0.2'), "💯": Decimal('2'), "💬": Decimal('3'),
+        "🔀": Decimal('4'), "🆕": Decimal('3'), "🔗": Decimal('2'), "❤️": Decimal('4'),
+        "🚀": Decimal('3.5'), "💎": Decimal('6'), "🌟": Decimal('3'), "⚡": Decimal('2.5'),
+    }
+
+# === UTILITIES ===
+
+def now_utc() -> datetime.datetime:
+    return datetime.datetime.now(datetime.timezone.utc)
+
+def ts() -> str:
+    return now_utc().isoformat()
+
+def sha(data: str) -> str:
+    return base64.b64encode(hashlib.sha256(data.encode('utf-8')).digest()).decode()
+
+def today() -> str:
+    return now_utc().date().isoformat()
+
+def safe_divide(a: Decimal, b: Decimal, default: Decimal = Decimal('0')) -> Decimal:
+    return a / b if b != 0 else default
+
+def is_valid_username(name: str) -> bool:
+    return bool(re.fullmatch(r'[A-Za-z0-9_]{3,30}', name))
+
+def is_valid_emoji(emoji: str) -> bool:
+    return emoji in Cfg.EMOJI_BASE
+
+# === EXCEPTIONS ===
+
+class UserExistsError(Exception): pass
+class ConsentError(Exception): pass
+class KarmaError(Exception): pass
+class BlockedContentError(Exception): pass
+class CoinDepletedError(Exception): pass
+class RateLimitError(Exception): pass
+class ImprovementRequiredError(Exception): pass
+class EmojiRequiredError(Exception): pass
+
+# === CORE COMPONENTS ===
+
+class Vaccine:
+    def __init__(self):
+        self.lock = threading.RLock()
+        self.block_counts = defaultdict(int)
+        self.compiled_patterns = {level: [re.compile(p) for p in pats] for level, pats in Cfg.VAX_PATTERNS.items()}
+
+    def scan(self, text: str) -> bool:
+        if not isinstance(text, str): 
+            return True
+        t = text.lower()
+        with self.lock:
+            for level, compiled_pats in self.compiled_patterns.items():
+                for pat in compiled_pats:
+                    try:
+                        if pat.search(t):
+                            self.block_counts[level] += 1
+                            with open("vaccine.log", "a", encoding="utf-8") as f:
+                                f.write(json.dumps({"ts": ts(), "level": level, "pattern": pat.pattern, "snippet": text[:80]}) + "\n")
+                            logging.warning(f"🚫 Vaccine blocked {level} pattern '{pat.pattern}' in content: '{text[:50]}...'")
+                            return False
+                    except re.error as e:
+                        logging.error(f"⚠️ Regex error in vaccine pattern '{pat.pattern}': {e}")
+        return True
+
+class LogChain:
+    def __init__(self, filename="logchain.log", maxlen=Cfg.MAX_LOG):
+        self.filename = filename
+        self.lock = threading.RLock()
+        self.entries = deque(maxlen=maxlen)
+        self._load()
+
+    def _load(self):
+        try:
+            with open(self.filename, "r", encoding="utf-8") as f:
+                for line in f:
+                    self.entries.append(line.strip())
+            logging.info(f"📜 Loaded {len(self.entries)} audit entries")
+        except FileNotFoundError:
+            logging.info("📜 No audit log found, starting fresh")
+
+    def add(self, event: Dict[str, Any]) -> None:
+        with self.lock:
+            json_event = json.dumps(event, sort_keys=True)
+            prev_hash = self.entries[-1].split("||")[-1] if self.entries else ""
+            new_hash = sha(prev_hash + json_event)
+            entry_line = json_event + "||" + new_hash
+            self.entries.append(entry_line)
+            try:
+                with open(self.filename, "a", encoding="utf-8") as f:
+                    f.write(entry_line + "\n")
+            except IOError as e:
+                logging.error(f"❌ Failed to write audit log: {e}")
+
+    def verify(self) -> bool:
+        prev_hash = ""
+        for line in self.entries:
+            try:
+                event_json, h = line.split("||")
+            except ValueError:
+                logging.error("❌ Malformed audit log line")
+                return False
+            if sha(prev_hash + event_json) != h:
+                logging.error("❌ Audit log hash mismatch")
+                return False
+            prev_hash = h
+        return True
+
+class User:
+    def __init__(self, name: str, is_genesis: bool = False, species: str = "human"):
+        self.name = name
+        self.is_genesis = is_genesis
+        self.species = species
+        self.consent = True
+        self.karma = Decimal('1E12') if is_genesis else Decimal('0')
+        self.join_time = now_utc()
+        self.mint_count = 0
+        self.next_mint_threshold = Decimal('0') if is_genesis else Cfg.MINT_BASE
+        self.root_coin_id: Optional[str] = None
+        self.coins_owned: List[str] = []
+        self.daily_actions: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
+        self._last_action_day: Optional[str] = today()
+        self._reaction_timestamps: deque = deque()
+        self.lock = threading.RLock()
+    def fading_multiplier(self) -> Decimal:
+        if not self.is_genesis: return Decimal('1')
+        elapsed = (now_utc() - self.join_time).total_seconds()
+        fade_seconds = float(Cfg.GENESIS_FADE_YEARS * 365.25 * 24 * 3600)
+        if elapsed >= fade_seconds: return Decimal('1')
+        frac = Decimal(elapsed) / Decimal(fade_seconds)
+        return Cfg.GENESIS_MULT0 - frac * (Cfg.GENESIS_MULT0 - Decimal('1'))
+    def reset_daily_if_needed(self) -> None:
+        today_str = today()
+        with self.lock:
+            if self._last_action_day != today_str:
+                self.daily_actions.clear()
+                self._last_action_day = today_str
+                self._reaction_timestamps.clear()
+    def check_reaction_rate_limit(self) -> bool:
+        now_ts = now_utc().timestamp()
+        with self.lock:
+            while self._reaction_timestamps and now_ts - self._reaction_timestamps[0] > 60:
+                self._reaction_timestamps.popleft()
+            if len(self._reaction_timestamps) >= Cfg.MAX_REACTS_PER_MINUTE:
+                return False
+            self._reaction_timestamps.append(now_ts)
+            return True
+    def check_mint_rate_limit(self) -> bool:
+        self.reset_daily_if_needed()
+        with self.lock:
+            return self.daily_actions[today()].get("mint", 0) < Cfg.MAX_MINTS_PER_DAY
+
+class Coin:
+    def __init__(self, coin_id: str, creator: str, owner: str, value: Decimal = Decimal('1'),
+                 is_root: bool = False, fractional_of: Optional[str] = None,
+                 fractional_pct: Decimal = Decimal('0'), references: Optional[List[Dict]] = None,
+                 improvement: Optional[str] = None):
+        self.coin_id = coin_id
+        self.creator = creator
+        self.owner = owner
+        self.value = value
+        self.is_root = is_root
+        self.fractional_of = fractional_of
+        self.fractional_pct = fractional_pct
+        self.references = references or []
+        self.improvement = improvement or ""
+        self.ancestors: List[str] = []
+        self.reactions: List[Dict] = []
+        self.created_at = ts()
+
+class EmojiMarket:
+    def __init__(self):
+        self.lock = threading.RLock()
+        self.market: Dict[str, Dict[str, Any]] = {
+            e: {"uses": Decimal('1'), "karma": Decimal(w), "weight": Decimal(w)}
+            for e, w in Cfg.EMOJI_BASE.items()
+        }
+    def update_weight(self, emoji: str, karma_delta: Decimal) -> None:
+        with self.lock:
+            em = self.market.setdefault(emoji, {"uses": Decimal('0'), "karma": Decimal('0'), "weight": Decimal('1')})
+            em["uses"] += 1
+            em["karma"] += karma_delta
+            # Exponential moving average to reduce runaway weights
+            alpha = Decimal('0.1')
+            em["weight"] = alpha * (em["karma"] / em["uses"]) + (Decimal('1') - alpha) * em["weight"]
+    def get_weight(self, emoji: str) -> Decimal:
+        with self.lock:
+            return self.market.get(emoji, {"weight": Decimal('1')})["weight"]
+
+class HookManager:
+    def __init__(self):
+        self._hooks: Dict[str, List[Callable]] = defaultdict(list)
+        self.lock = threading.RLock()
+    def register_hook(self, event_name: str, callback: Callable):
+        with self.lock:
+            self._hooks[event_name].append(callback)
+            logging.info(f"Hook registered for event '{event_name}'")
+    def fire_hooks(self, event_name: str, *args, **kwargs):
+        with self.lock:
+            callbacks = list(self._hooks.get(event_name, []))
+        for cb in callbacks:
+            try:
+                cb(*args, **kwargs)
+            except Exception as e:
+                logging.error(f"Error in hook '{event_name}': {e}")
+
+class RemixAgent:
+    def __init__(self, snapshot_file="snapshot.json"):
+        self.vaccine = Vaccine()
+        self.logchain = LogChain()
+        self.users: Dict[str, User] = {}
+        self.coins: Dict[str, Coin] = {}
+        self.treasury = Decimal('0')
+        self.treasury_active_fund = Decimal('0')
+        self.emoji_market = EmojiMarket()
+        self.lock = threading.RLock()
+        self.hooks = HookManager()
+        self.snapshot_file = snapshot_file
+        self._last_heartbeat = now_utc()
+        self.shared_ownership_enabled = False
+
+    def add_user(self, name: str, genesis: bool = False, species: str = "human") -> User:
+        if not is_valid_username(name): raise ValueError("Invalid username")
+        with self.lock:
+            if name in self.users: raise UserExistsError(f"User '{name}' exists")
+            user = User(name, genesis, species)
+            salt = uuid.uuid4().hex
+            coin_id = sha(f"{name}_{ts()}_{salt}")
+            root_coin = Coin(coin_id, name, name, Decimal('1'), True)
+            self.coins[coin_id] = root_coin
+            user.root_coin_id = coin_id
+            user.coins_owned.append(coin_id)
+            self.users[name] = user
+            self.logchain.add({"event": "ADD_USER", "user": name, "genesis": genesis, "species": species, "ts": ts()})
+            logging.info(f"Added user {name} (Genesis={genesis}) 🥰")
+        self.hooks.fire_hooks("user_added", user=user)
+        return user
+
+Yes, from what I see here, every user starts with their **own root coin**, uniquely identified and linked to their user record. This root coin is the initial source from which fractional coins (posts or remixes) are minted, consuming the value of the root coin gradually.
+
+The owner of each root coin is the user themselves (user’s own name as owner). So the economy is **not ownerless**; each coin has a clearly designated owner, at least initially.
+
+You can extend or modify this model to allow for fractional or shared ownership, DAO-based ownership, or even ownerless (collective) coins, but the current structure is firmly user-centric in ownership.
+
+Would you like me to help you evolve this concept towards a more ownerless or DAO-driven model?
 
 
 
