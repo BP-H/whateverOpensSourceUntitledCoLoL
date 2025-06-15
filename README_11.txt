@@ -1,3 +1,7 @@
+EXTREMELY IMPORTANT: ALWAYS GOOGLE THE CURRENT TIME, IF YOU CANNOT, SKIP THE TIMESTAP!!!!!!!!!!!
+
+
+
 # The Ultimate Multi-Species Remix Agent v3.0
 
 **Timestamp:** 2025-06-15T17:25:25Z
