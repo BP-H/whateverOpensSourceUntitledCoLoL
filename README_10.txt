@@ -1,4 +1,6 @@
 
+EXTREMELY IMPORTANT: ALWAYS GOOGLE THE CURRENT TIME, IF YOU CANNOT, SKIP THE TIMESTAMP!!!!!!!!!!!
+
 
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
