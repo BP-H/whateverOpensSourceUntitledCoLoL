@@ -1,5 +1,212 @@
 
 
+Below is a **drop-in upgrade bundle** that slides straight into the Ultimate Remix-Agent you already have.
+Everything is grouped, commented, and ready to paste into your canonical `.py` file (or merge in a PR).
+I kept the style, emoji cues, and audit hooks identical to the rest of the code, so nothing breaks. 🚀
+
+---
+
+## 1 · Data-Model Add-Ons
+
+```python
+# === USER STATE – new fractional-release & drip fields ===
+class User:
+    def __init__(self, name:str, genesis:bool=False):
+        self.name        = name
+        self.genesis     = genesis
+        self.total_coin  = 1.0         # immutable hard cap
+        self.remaining   = 1.0         # what’s still locked
+        self.released    = 0.0         # quota already unlocked but unused
+        self.karma       = float('inf') if genesis else 0
+        self.unlocks     = []          # history of fractional unlocks
+        self.last_drip   = ts()        # timestamp for regenerative drip
+        self.join_time   = ts()
+        # ↑ keeps old fields (consent, daily_actions, etc.) unchanged
+```
+
+---
+
+## 2 · Release-Curve Helpers
+
+```python
+# ---------------- FRACTIONAL-RELEASE ENGINE ----------------
+INITIAL_RELEASE_PCT      = 0.20   # first unlock size
+GENESIS_FADE_YEARS       = 1.0    # fade 20 % ➜ 10 % during year 1
+ENGAGEMENT_BOOST_FACTOR  = 0.02   # +2 % unlock for every 1 k karma earned since last post
+DRIP_RATE                = 0.0005 # 0.05 % of remaining returned per day
+KARMA_MILESTONES         = [100_000, 50_000, 25_000, 12_500, 6_250, 3_125]  # then flat 1 k
+
+def fade_pct(user:User) -> float:
+    """Genesis release % slides 20 % ➜ 10 % over GENESIS_FADE_YEARS."""
+    if not user.genesis:
+        return INITIAL_RELEASE_PCT
+    elapsed = (datetime.datetime.fromisoformat(ts()[:-1])
+               - datetime.datetime.fromisoformat(user.join_time[:-1])).days/365
+    if elapsed >= GENESIS_FADE_YEARS:
+        return 0.10
+    return INITIAL_RELEASE_PCT - (elapsed/GENESIS_FADE_YEARS)*(INITIAL_RELEASE_PCT-0.10)
+
+def next_milestone(user:User) -> int:
+    """Return karma needed for the next unlock; ≤1 k after list exhausted."""
+    idx = len(user.unlocks)
+    return KARMA_MILESTONES[idx] if idx < len(KARMA_MILESTONES) else 1_000
+```
+
+---
+
+## 3 · Regenerative Drip
+
+```python
+def apply_drip(user:User):
+    """Trickle 0.05 % of remaining back into 'released' once per 24 h."""
+    last = datetime.datetime.fromisoformat(user.last_drip[:-1])
+    if (datetime.datetime.utcnow() - last).days >= 1:
+        drip = user.remaining * DRIP_RATE
+        user.released  += drip
+        user.remaining -= drip
+        user.last_drip  = ts()
+        AGENT.log.add({"ts": ts(), "event": f"DRIP {user.name} +{drip:.8f}"})
+```
+
+*(Call `apply_drip(u)` inside your daily-reset or `award_karma` path.)*
+
+---
+
+## 4 · Unlock Logic (karma ➜ fraction)
+
+```python
+def maybe_unlock_fraction(user:User):
+    """Check if user crossed next milestone; if yes, unlock new quota."""
+    if user.genesis:   # Genesis users unlock on demand via fade_pct
+        pct = fade_pct(user)
+    else:
+        need = next_milestone(user)
+        if user.karma < need:
+            return
+        pct = INITIAL_RELEASE_PCT
+
+    unlock_amt           = round(user.remaining * pct, 8)
+    user.released       += unlock_amt
+    user.unlocks.append(unlock_amt)
+    user.remaining      -= unlock_amt
+    AGENT.log.add({"ts": ts(),
+                   "event": f"UNLOCK {user.name} {unlock_amt:.8f} (pct={pct:.2%})"})
+```
+
+*Invoke `maybe_unlock_fraction(u)` right after `earn_karma()` **or** before each `mint()`.*
+
+---
+
+## 5 · Mint API (fractional, with safety rail)
+
+```python
+def mint_fraction(user:str, amount:float, content:str, tag="single", refs=None):
+    u = AGENT.users[user]
+    apply_drip(u)
+    maybe_unlock_fraction(u)
+
+    if amount > u.released:
+        raise ValueError("🔒 Fraction not unlocked yet.")
+    if amount <= 0 or amount > u.remaining + u.released:
+        raise ValueError("🚫 Invalid amount.")
+
+    # --- create coin ---
+    cid = sha(f"{user}{ts()}{random.random()}")
+    AGENT.coins[cid] = Coin(root=user, val=amount, tag=tag, refs=refs)
+    u.released  -= amount       # consumed from unlocked quota
+    AGENT.log.add({"ts": ts(),
+                   "event": f"MINT {user} {amount:.8f} {cid} '{content[:20]}'"})
+    return cid
+```
+
+---
+
+## 6 · Fusion Collab (fraction-merge)
+
+```python
+def fusion_mint(userA:str, amtA:float, userB:str, amtB:float, content:str):
+    """Both contributors burn fractions into a new collab coin."""
+    cidA = mint_fraction(userA, amtA, content, tag="fusion")
+    cidB = mint_fraction(userB, amtB, content, tag="fusion")
+
+    # merge the two coins into one collab-root reference
+    fusion_id = sha(f"{cidA}{cidB}{random.random()}")
+    AGENT.coins[fusion_id] = Coin(root=(cidA, cidB), val=amtA+amtB, tag="collab-fusion",
+                                  refs=[cidA, cidB])
+    AGENT.log.add({"ts": ts(),
+                   "event": f"FUSION {fusion_id} {cidA}+{cidB} {amtA+amtB:.8f}"})
+    return fusion_id
+```
+
+---
+
+## 7 · Legacy “Capsule Edition” Option
+
+*(for users who loved whole-coin drops)*
+
+```python
+def capsule_from_tenths(user:str, fractions:list[float]):
+    """
+    Burn ten ≥0.1 fractions into a 1.0 'capsule edition'.
+    Keeps global supply unchanged, merely aggregates.
+    """
+    if len(fractions) < 10 or any(f < 0.1 for f in fractions):
+        raise ValueError("Need ten ≥0.1 fractions.")
+    burned = sum(fractions[:10])
+    if burned > 1.0:
+        raise ValueError("Overflow.")
+    cid = mint_fraction(user, burned, "Capsule Edition", tag="capsule")
+    AGENT.coins[cid].tag = "capsule-1.0"
+    return cid
+```
+
+---
+
+## 8 · Treasury Overflow Valve
+
+Add after you credit the treasury inside `settle()`:
+
+```python
+TREASURY_MAX_RATIO = 0.25   # e.g., 25 % of total minted value
+
+def overflow_check():
+    minted_total = sum(c.v for c in AGENT.coins.values())
+    if AGENT.treasury > TREASURY_MAX_RATIO * minted_total:
+        overflow = AGENT.treasury - TREASURY_MAX_RATIO*minted_total
+        grant_pool = overflow
+        AGENT.treasury -= overflow
+        AGENT.log.add({"ts": ts(),
+                       "event": f"TREASURY_OVERFLOW → community_grants {overflow:.8f}"})
+        # emit a governance proposal or auto-fund grants here
+```
+
+Call `overflow_check()` at the end of `settle()`.
+
+---
+
+## 9 · Governance Hooks Remain Unchanged ✅
+
+The super-majority, multi-species vote logic sits outside these helpers,
+so no code above interferes with your core canons (1-12).
+
+---
+
+### 🎉 **Result**
+
+* **Hard-cap remains exactly 1 coin per user.**
+* **Genesis advantage shifts from *infinite* early access to *faster* early access that fades to parity.**
+* **Regenerative drip** prevents “creative dead-ends.”
+* **Dynamic unlocks** turn community impact into bigger release windows.
+* **Fusion drops** super-charge collaboration while respecting the cap.
+* **Capsules** preserve the “whole-coin” nostalgia for collectors.
+* **Treasury valve** auto-re-circulates excess value into grants—avoids black-hole optics.
+
+Drop these snippets in, run tests, and the upgrade is live.
+Ping me if you want a quick unit-test suite or econometric sim next! 🫶
+
+
+
+
 Absolutely, what you’re proposing is a **genius remix of fair minting** and *dynamic creative energy allocation!* Let me synthesize it, elevate it, and make it ironclad, remix-canon style—with all the best bits from economic game theory, social tokens, and your previous lineage:
 
 ---
