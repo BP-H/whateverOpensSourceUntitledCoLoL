@@ -1,5 +1,755 @@
 
 
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+🥰✨ THE ULTIMATE REMIX KARMA ECONOMY AGENT v2.1 🫶🌸
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Enhanced remix economy protocol with improved error handling,
+performance optimizations, and advanced features.
+───────────────────────────────────────────────────────────────
+Timestamp: 2025-06-15T13:15:00Z
+"""
+
+import json
+import hashlib
+import datetime
+import random
+import re
+import logging
+from collections import defaultdict, deque
+from typing import Dict, List, Optional, Tuple, Union
+from dataclasses import dataclass, field
+from contextlib import contextmanager
+import threading
+
+# ── CONFIGURATION ──
+
+@dataclass
+class Config:
+    """Centralized configuration for the remix economy."""
+    mint_threshold_base: float = 100_000.0
+    min_karma_threshold: float = 1000.0
+    genesis_fade_years: float = 10.0
+    genesis_initial_multiplier: float = 2.0
+    daily_decay_factor: float = 0.7
+    treasury_split_ratio: float = 1/3
+    max_log_entries: int = 50_000
+    vaccine_log_file: str = "vaccine.log"
+    logchain_file: str = "logchain.log"
+    
+    # Default emoji weights
+    emoji_weights: Dict[str, float] = field(default_factory=lambda: {
+        "🤗": 5.0, "🎨": 3.0, "🔥": 2.0, "👍": 1.0,
+        "👀": 0.5, "🥲": 0.2, "💯": 2.0, "💬": 3.0,
+        "🔀": 4.0, "🆕": 3.0, "🔗": 2.0, "❤️": 4.0,
+        "🚀": 3.5, "💎": 6.0, "🌟": 3.0, "⚡": 2.5
+    })
+
+# ── UTILS ──
+
+def ts():
+    """Return ISO 8601 UTC timestamp string."""
+    return datetime.datetime.utcnow().isoformat() + "Z"
+
+def sha256(s: str) -> str:
+    """Return SHA-256 hash hex digest of input string."""
+    return hashlib.sha256(s.encode("utf-8")).hexdigest()
+
+def today():
+    """Return current date as YYYY-MM-DD for daily reset tracking."""
+    return datetime.date.today().isoformat()
+
+# Set up logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+# ── EXCEPTIONS ──
+
+class RemixAgentError(Exception):
+    """Base exception for remix agent errors."""
+    pass
+
+class ConsentError(RemixAgentError):
+    """Raised when consent requirements are not met."""
+    pass
+
+class KarmaError(RemixAgentError):
+    """Raised when karma requirements are not met."""
+    pass
+
+class VaccineError(RemixAgentError):
+    """Raised when content is blocked by vaccine."""
+    pass
+
+# ── IMMUNE SYSTEM VACCINE ──
+
+class Vaccine:
+    """Content filtering system with configurable patterns and severity levels."""
+    
+    VAX_PATTERNS = {
+        "critical": [
+            r"\bhack\b", r"\bmalware\b", r"\bransomware\b", r"\bbackdoor\b",
+            r"\bexploit\b", r"\bvulnerability\b", r"\btrojan\b"
+        ],
+        "high": [
+            r"\bphish\b", r"\bddos\b", r"\bspyware\b", r"\brootkit\b",
+            r"\bkeylogger\b", r"\bbotnet\b"
+        ],
+        "medium": [
+            r"\bpolitics\b", r"\bpropaganda\b", r"\bsurveillance\b", 
+            r"\bmanipulate\b", r"\bmisinformation\b"
+        ],
+    }
+
+    def __init__(self, log_file: str = "vaccine.log", custom_patterns: Optional[Dict] = None):
+        self.block_counts = defaultdict(int)
+        self.log_file = log_file
+        self.lock = threading.Lock()
+        
+        if custom_patterns:
+            # Allow custom patterns to extend or override defaults
+            for level, patterns in custom_patterns.items():
+                if level in self.VAX_PATTERNS:
+                    self.VAX_PATTERNS[level].extend(patterns)
+                else:
+                    self.VAX_PATTERNS[level] = patterns
+
+    def scan(self, text: str) -> bool:
+        """Scan text for forbidden patterns. Return False if blocked."""
+        if not text or not isinstance(text, str):
+            return True
+            
+        text_l = text.lower()
+        
+        with self.lock:
+            for level, patterns in self.VAX_PATTERNS.items():
+                for pat in patterns:
+                    try:
+                        if re.search(pat, text_l):
+                            self.block_counts[level] += 1
+                            self._log_block(level, pat, text)
+                            logger.warning(f"Content blocked by vaccine: {level} - {pat}")
+                            return False
+                    except re.error as e:
+                        logger.error(f"Regex error in vaccine pattern '{pat}': {e}")
+                        continue
+        return True
+
+    def _log_block(self, level: str, pattern: str, text: str):
+        """Log blocked content to file."""
+        log_entry = {
+            "ts": ts(),
+            "severity": level,
+            "pattern": pattern,
+            "snippet": text[:128]
+        }
+        try:
+            with open(self.log_file, "a", encoding='utf-8') as f:
+                f.write(json.dumps(log_entry) + "\n")
+        except IOError as e:
+            logger.error(f"Failed to write vaccine log: {e}")
+
+    def add_pattern(self, level: str, pattern: str):
+        """Dynamically add new patterns."""
+        with self.lock:
+            if level not in self.VAX_PATTERNS:
+                self.VAX_PATTERNS[level] = []
+            self.VAX_PATTERNS[level].append(pattern)
+            logger.info(f"Added vaccine pattern: {level} - {pattern}")
+
+# ── IMMUTABLE AUDIT LOGCHAIN ──
+
+class LogChain:
+    """Cryptographically chained immutable audit log."""
+    
+    def __init__(self, filename: str = "logchain.log", maxlen: int = 50000):
+        self.filename = filename
+        self.entries = deque(maxlen=maxlen)
+        self.lock = threading.Lock()
+        self._load_from_file()
+
+    def _load_from_file(self):
+        """Load existing log entries from file."""
+        try:
+            with open(self.filename, "r", encoding='utf-8') as f:
+                for line in f:
+                    line = line.rstrip()
+                    if line:  # Skip empty lines
+                        self.entries.append(line)
+            logger.info(f"Loaded {len(self.entries)} log entries from {self.filename}")
+        except FileNotFoundError:
+            logger.info(f"No existing log file found, starting fresh: {self.filename}")
+        except Exception as e:
+            logger.error(f"Error loading log file {self.filename}: {e}")
+
+    def add(self, event: dict):
+        """Add event dict with chained SHA-256 hash."""
+        with self.lock:
+            # Ensure event has timestamp
+            if 'ts' not in event:
+                event['ts'] = ts()
+                
+            entry_json = json.dumps(event, sort_keys=True, ensure_ascii=False)
+            prev_hash = self.entries[-1].split("||")[-1] if self.entries else sha256("GENESIS_BLOCK")
+            chain_hash = sha256(prev_hash + entry_json)
+            self.entries.append(f"{entry_json}||{chain_hash}")
+            self._save()
+
+    def _save(self):
+        """Save all entries to file."""
+        try:
+            with open(self.filename, "w", encoding='utf-8') as f:
+                f.write("\n".join(self.entries))
+        except IOError as e:
+            logger.error(f"Failed to write logchain: {e}")
+
+    def verify(self) -> bool:
+        """Verify hash chain integrity."""
+        with self.lock:
+            prev_hash = sha256("GENESIS_BLOCK")
+            for i, entry in enumerate(self.entries, start=1):
+                try:
+                    if "||" not in entry:
+                        logger.error(f"LogChain malformed at entry {i}: missing hash separator")
+                        return False
+                    entry_json, stored_hash = entry.rsplit("||", 1)
+                    expected_hash = sha256(prev_hash + entry_json)
+                    if expected_hash != stored_hash:
+                        logger.error(f"LogChain broken at entry {i}: hash mismatch")
+                        return False
+                    prev_hash = stored_hash
+                except Exception as e:
+                    logger.error(f"LogChain verification error at entry {i}: {e}")
+                    return False
+            
+            logger.info("✅ LogChain verified intact.")
+            return True
+
+    def get_recent_events(self, event_type: Optional[str] = None, limit: int = 20) -> List[dict]:
+        """Get recent events, optionally filtered by type."""
+        with self.lock:
+            events = []
+            for entry in list(self.entries)[-limit:]:
+                try:
+                    entry_json = entry.split("||")[0]
+                    event = json.loads(entry_json)
+                    if not event_type or event.get('event', '').startswith(event_type):
+                        events.append(event)
+                except (json.JSONDecodeError, IndexError) as e:
+                    logger.warning(f"Malformed log entry: {e}")
+                    continue
+            return events
+
+# ── USER MODEL ──
+
+@dataclass
+class User:
+    """Enhanced user model with better validation and methods."""
+    username: str
+    is_genesis: bool = False
+    consent: bool = False
+    karma: float = 0.0
+    minted_coins: int = 0
+    join_time: datetime.datetime = field(default_factory=datetime.datetime.utcnow)
+    daily_action_counts: Dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    fading_multiplier_start: Optional[datetime.datetime] = None
+    last_action_day: str = field(default_factory=today)
+    
+    def __post_init__(self):
+        if self.is_genesis:
+            self.karma = float('inf')
+            self.fading_multiplier_start = self.join_time
+
+    def fading_multiplier(self, config: Config) -> float:
+        """Calculate fading genesis multiplier."""
+        if not self.is_genesis or not self.fading_multiplier_start:
+            return 1.0
+            
+        elapsed = (datetime.datetime.utcnow() - self.fading_multiplier_start).total_seconds()
+        fade_seconds = config.genesis_fade_years * 365.25 * 24 * 3600
+        
+        if elapsed >= fade_seconds:
+            return 1.0
+            
+        fraction = elapsed / fade_seconds
+        return max(1.0, config.genesis_initial_multiplier - fraction * (config.genesis_initial_multiplier - 1.0))
+
+    def reset_daily_actions_if_needed(self):
+        """Auto-reset daily actions if new day."""
+        current_day = today()
+        if self.last_action_day != current_day:
+            self.daily_action_counts.clear()
+            self.last_action_day = current_day
+
+    def can_perform_action(self, action_type: str, max_daily: int = 100) -> bool:
+        """Check if user can perform an action based on daily limits."""
+        self.reset_daily_actions_if_needed()
+        return self.daily_action_counts[action_type] < max_daily
+
+# ── COIN MODEL ──
+
+@dataclass
+class Coin:
+    """Enhanced coin model with better validation."""
+    id: str
+    originators: Tuple[str, ...]
+    tag: str = "single"
+    value: float = 1.0
+    ancestry: List[str] = field(default_factory=list)
+    reactions: List[Tuple[str, str, str]] = field(default_factory=list)  # (username, emoji, timestamp)
+    references: List[str] = field(default_factory=list)
+    created_at: str = field(default_factory=ts)
+    
+    def __post_init__(self):
+        if isinstance(self.originators, str):
+            self.originators = (self.originators,)
+        elif isinstance(self.originators, list):
+            self.originators = tuple(self.originators)
+    
+    def get_lineage_depth(self) -> int:
+        """Get the depth of remix lineage."""
+        return len(self.ancestry)
+    
+    def total_reactions(self) -> int:
+        """Get total number of reactions."""
+        return len(self.reactions)
+    
+    def reaction_summary(self) -> Dict[str, int]:
+        """Get summary of reactions by emoji."""
+        summary = defaultdict(int)
+        for _, emoji, _ in self.reactions:
+            summary[emoji] += 1
+        return dict(summary)
+
+# ── MAIN AGENT ──
+
+class RemixAgent:
+    """Enhanced remix economy agent with improved error handling and features."""
+    
+    def __init__(self, config: Optional[Config] = None):
+        self.config = config or Config()
+        self.vaccine = Vaccine(self.config.vaccine_log_file)
+        self.logchain = LogChain(self.config.logchain_file, self.config.max_log_entries)
+        self.users: Dict[str, User] = {}
+        self.coins: Dict[str, Coin] = {}
+        self.treasury = 0.0
+        self.plugins = defaultdict(list)
+        self.lock = threading.Lock()
+        
+        # Initialize NSS genesis users
+        self.NSS = ["mimi", "taha", "accessAI_tech"] + [f"nss_{i:02d}" for i in range(1, 48)]
+        for user in self.NSS:
+            self._add_user(user, is_genesis=True)
+
+    def _add_user(self, username: str, is_genesis: bool = False):
+        """Internal user addition without logging (for initialization)."""
+        if username not in self.users:
+            self.users[username] = User(username=username, is_genesis=is_genesis)
+
+    # User management
+
+    def add_user(self, username: str, is_genesis: bool = False) -> bool:
+        """Add a new user to the system."""
+        if not username or not isinstance(username, str):
+            raise ValueError("Username must be a non-empty string")
+            
+        with self.lock:
+            if username in self.users:
+                logger.warning(f"User {username} already exists")
+                return False
+                
+            self.users[username] = User(username=username, is_genesis=is_genesis)
+            self.logchain.add({
+                "event": "ADD_USER",
+                "username": username,
+                "is_genesis": is_genesis
+            })
+            logger.info(f"User '{username}' added, genesis={is_genesis}")
+            return True
+
+    def set_consent(self, username: str, consent: bool = True) -> bool:
+        """Set user consent status."""
+        user = self.users.get(username)
+        if not user:
+            raise ConsentError(f"Unknown user: {username}")
+            
+        with self.lock:
+            user.consent = consent
+            self.logchain.add({
+                "event": "CONSENT_SET",
+                "username": username,
+                "consent": consent
+            })
+            logger.info(f"Consent set to {consent} for user '{username}'")
+            return True
+
+    def check_consent(self, username: str) -> bool:
+        """Check if user has given consent."""
+        user = self.users.get(username)
+        if not user:
+            raise ConsentError(f"Unknown user: {username}")
+        if not user.consent:
+            raise ConsentError(f"User '{username}' has not given consent")
+        return True
+
+    # Karma & Minting
+
+    def karma_threshold(self, user: User) -> float:
+        """Calculate karma threshold for user's next mint."""
+        if user.is_genesis:
+            return 0.0
+        minted = user.minted_coins
+        threshold = self.config.mint_threshold_base / (2 ** minted)
+        return max(self.config.min_karma_threshold, threshold)
+
+    def can_mint(self, username: str) -> bool:
+        """Check if user can mint a new coin."""
+        user = self.users.get(username)
+        if not user:
+            return False
+        if user.is_genesis:
+            return True
+        return user.karma >= self.karma_threshold(user)
+
+    def mint_coin(self, username: str, tag: str = "single", refs: Optional[List[str]] = None) -> Optional[str]:
+        """Mint a new coin."""
+        user = self.users.get(username)
+        if not user:
+            raise ValueError(f"Unknown user: {username}")
+            
+        user.reset_daily_actions_if_needed()
+        
+        try:
+            self.check_consent(username)
+        except ConsentError as e:
+            logger.warning(str(e))
+            return None
+            
+        if not self.can_mint(username):
+            needed = self.karma_threshold(user)
+            raise KarmaError(f"User '{username}' needs {needed:.0f} karma to mint; has {user.karma:.1f}")
+            
+        # Validate references with vaccine
+        if refs:
+            for ref in refs:
+                if not self.vaccine.scan(ref):
+                    raise VaccineError(f"Reference content blocked: {ref[:50]}...")
+                    
+        with self.lock:
+            coin_id = sha256(f"{username}{ts()}{random.random()}")
+            new_coin = Coin(
+                id=coin_id,
+                originators=(username,),
+                tag=tag,
+                references=refs or []
+            )
+            
+            self.coins[coin_id] = new_coin
+            user.minted_coins += 1
+            
+            # Deduct karma threshold for non-genesis users
+            if not user.is_genesis:
+                user.karma -= self.karma_threshold(user)
+                
+            self.logchain.add({
+                "event": "MINT",
+                "coin_id": coin_id,
+                "username": username,
+                "tag": tag,
+                "references": refs or []
+            })
+            
+            logger.info(f"Coin minted by '{username}': {coin_id}")
+            self._call_plugins("on_mint", new_coin)
+            return coin_id
+
+    # Reaction & value split
+
+    def react(self, username: str, coin_id: str, emoji: str) -> bool:
+        """React to a coin with an emoji."""
+        user = self.users.get(username)
+        coin = self.coins.get(coin_id)
+        
+        if not user:
+            raise ValueError(f"Unknown user: {username}")
+        if not coin:
+            raise ValueError(f"Unknown coin: {coin_id}")
+            
+        user.reset_daily_actions_if_needed()
+        
+        try:
+            self.check_consent(username)
+        except ConsentError as e:
+            logger.warning(str(e))
+            return False
+            
+        if not self.vaccine.scan(emoji):
+            raise VaccineError("Reaction blocked by vaccine")
+            
+        if not user.can_perform_action(f"react_{emoji}", max_daily=50):
+            logger.warning(f"User {username} has reached daily reaction limit for {emoji}")
+            return False
+
+        with self.lock:
+            # Calculate diminishing returns
+            count = user.daily_action_counts[f"react_{emoji}"]
+            decay_factor = self.config.daily_decay_factor ** count
+            user.daily_action_counts[f"react_{emoji}"] += 1
+
+            base_weight = self.config.emoji_weights.get(emoji, 1.0)
+            weighted_value = base_weight * decay_factor
+
+            # Calculate 33.3% splits
+            split_value = weighted_value * self.config.treasury_split_ratio
+
+            # Apply multipliers
+            originators_mult = sum(
+                self.users[orig].fading_multiplier(self.config) 
+                for orig in coin.originators 
+                if orig in self.users
+            ) / len(coin.originators)
+            
+            actor_mult = user.fading_multiplier(self.config)
+
+            originator_share = split_value * originators_mult
+            actor_share = split_value * actor_mult
+            treasury_share = split_value
+
+            # Distribute karma
+            for orig in coin.originators:
+                orig_user = self.users.get(orig)
+                if orig_user and orig_user.consent:
+                    orig_user.karma += originator_share / len(coin.originators)
+
+            user.karma += actor_share
+            self.treasury += treasury_share
+
+            coin.reactions.append((username, emoji, ts()))
+
+            self.logchain.add({
+                "event": "REACT",
+                "username": username,
+                "coin_id": coin_id,
+                "emoji": emoji,
+                "value": weighted_value,
+                "split": {
+                    "originator": originator_share,
+                    "actor": actor_share,
+                    "treasury": treasury_share
+                }
+            })
+
+            logger.info(f"{username} reacted {emoji} on coin {coin_id}: "
+                       f"originator +{originator_share:.2f}, actor +{actor_share:.2f}, "
+                       f"treasury +{treasury_share:.2f}")
+
+            self._call_plugins("on_react", username, coin_id, emoji, weighted_value)
+            return True
+
+    # Remixing
+
+    def remix_coin(self, username: str, parent_coin_id: str, tag: str = "remix", 
+                   refs: Optional[List[str]] = None) -> Optional[str]:
+        """Create a remix of an existing coin."""
+        user = self.users.get(username)
+        parent = self.coins.get(parent_coin_id)
+        
+        if not user:
+            raise ValueError(f"Unknown user: {username}")
+        if not parent:
+            raise ValueError(f"Unknown parent coin: {parent_coin_id}")
+            
+        user.reset_daily_actions_if_needed()
+        
+        try:
+            self.check_consent(username)
+        except ConsentError as e:
+            logger.warning(str(e))
+            return None
+
+        with self.lock:
+            # Combine originators (preserve lineage)
+            originators = tuple(sorted(set(parent.originators + (username,))))
+
+            coin_id = sha256(f"{username}{parent_coin_id}{ts()}{random.random()}")
+            new_coin = Coin(
+                id=coin_id,
+                originators=originators,
+                tag=tag,
+                ancestry=parent.ancestry + [parent_coin_id],
+                references=refs or []
+            )
+            
+            self.coins[coin_id] = new_coin
+            user.minted_coins += 1  # Count remixes as mints
+
+            self.logchain.add({
+                "event": "REMIX",
+                "coin_id": coin_id,
+                "parent_coin_id": parent_coin_id,
+                "username": username,
+                "tag": tag,
+                "ancestry": new_coin.ancestry
+            })
+
+            logger.info(f"Coin remixed by '{username}': {coin_id} (parent {parent_coin_id})")
+            self._call_plugins("on_remix", new_coin)
+            return coin_id
+
+    # Plugin system
+
+    def register_plugin(self, event_name: str, callback):
+        """Register a plugin callback for an event."""
+        self.plugins[event_name].append(callback)
+        logger.info(f"Plugin registered for event '{event_name}'")
+
+    def _call_plugins(self, event_name: str, *args, **kwargs):
+        """Call all registered plugins for an event."""
+        for plugin in self.plugins[event_name]:
+            try:
+                plugin(*args, **kwargs)
+            except Exception as e:
+                logger.error(f"Plugin error on event '{event_name}': {e}")
+
+    # Analytics and utilities
+
+    def get_user_stats(self, username: str) -> Dict:
+        """Get comprehensive user statistics."""
+        user = self.users.get(username)
+        if not user:
+            raise ValueError(f"Unknown user: {username}")
+            
+        user_coins = [coin for coin in self.coins.values() if username in coin.originators]
+        total_reactions = sum(len(coin.reactions) for coin in user_coins)
+        
+        return {
+            "username": username,
+            "is_genesis": user.is_genesis,
+            "karma": user.karma,
+            "minted_coins": user.minted_coins,
+            "fading_multiplier": user.fading_multiplier(self.config),
+            "total_reactions_received": total_reactions,
+            "join_time": user.join_time.isoformat(),
+            "consent": user.consent
+        }
+
+    def get_coin_lineage(self, coin_id: str) -> List[str]:
+        """Trace the complete lineage of a coin."""
+        coin = self.coins.get(coin_id)
+        if not coin:
+            raise ValueError(f"Unknown coin: {coin_id}")
+            
+        lineage = []
+        current = coin
+        
+        while current.ancestry:
+            parent_id = current.ancestry[-1]  # Most recent parent
+            lineage.append(parent_id)
+            current = self.coins.get(parent_id)
+            if not current:
+                break
+                
+        return lineage
+
+    def get_treasury_balance(self) -> float:
+        """Get current treasury balance."""
+        return self.treasury
+
+    def show_user_karma(self, username: str):
+        """Display user karma information."""
+        try:
+            stats = self.get_user_stats(username)
+            print(f"User '{username}' karma: {stats['karma']:.2f}")
+            print(f"  Genesis: {stats['is_genesis']}")
+            print(f"  Multiplier: {stats['fading_multiplier']:.2f}")
+            print(f"  Coins minted: {stats['minted_coins']}")
+        except ValueError as e:
+            print(f"Error: {e}")
+
+    def show_coin_info(self, coin_id: str):
+        """Display detailed coin information."""
+        coin = self.coins.get(coin_id)
+        if not coin:
+            print(f"No such coin: {coin_id}")
+            return
+            
+        print(f"Coin ID: {coin.id}")
+        print(f"Originators: {coin.originators}")
+        print(f"Tag: {coin.tag}")
+        print(f"Created: {coin.created_at}")
+        print(f"Lineage depth: {coin.get_lineage_depth()}")
+        print(f"Total reactions: {coin.total_reactions()}")
+        print(f"Reaction summary: {coin.reaction_summary()}")
+        if coin.ancestry:
+            print(f"Ancestry: {coin.ancestry}")
+        if coin.references:
+            print(f"References: {coin.references}")
+
+# ── DEMO SCRIPT ──
+
+def demo():
+    """Demonstration of the remix agent capabilities."""
+    print("🚀 Starting Remix Agent Demo...")
+    
+    agent = RemixAgent()
+    
+    # Set up users
+    agent.set_consent("mimi", True)
+    agent.set_consent("taha", True)
+    agent.add_user("alice")
+    agent.set_consent("alice", True)
+    
+    try:
+        # Genesis user mints
+        coin1 = agent.mint_coin("mimi", tag="art", refs=["original artwork"])
+        print(f"✅ Genesis mint successful: {coin1}")
+        
+        # Regular user tries to mint (should fail initially)
+        try:
+            agent.mint_coin("alice")
+        except KarmaError as e:
+            print(f"❌ Expected karma error: {e}")
+        
+        # Alice reacts to build karma
+        agent.react("alice", coin1, "🤗")
+        agent.react("alice", coin1, "🎨")
+        agent.react("alice", coin1, "🔥")
+        
+        # Give Alice enough karma to mint
+        agent.users["alice"].karma = 100_000
+        coin2 = agent.mint_coin("alice", tag="response")
+        print(f"✅ Regular user mint successful: {coin2}")
+        
+        # Taha remixes Alice's coin
+        coin3 = agent.remix_coin("taha", coin2, tag="remix")
+        print(f"✅ Remix successful: {coin3}")
+        
+        # Show statistics
+        print("\n📊 User Statistics:")
+        agent.show_user_karma("mimi")
+        agent.show_user_karma("alice")
+        agent.show_user_karma("taha")
+        
+        print(f"\n💰 Treasury balance: {agent.get_treasury_balance():.2f}")
+        
+        print("\n🪙 Coin Information:")
+        agent.show_coin_info(coin1)
+        print()
+        agent.show_coin_info(coin3)
+        
+        # Verify log integrity
+        print(f"\n🔒 Log chain verification: {agent.logchain.verify()}")
+        
+    except Exception as e:
+        logger.error(f"Demo error: {e}")
+        print(f"❌ Demo failed: {e}")
+
+# ── MAIN ──
+
+if __name__ == "__main__":
+    demo()
+
 
 Here is the ultimate, unified agent script.
 
