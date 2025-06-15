@@ -20,9 +20,9 @@ This README distills every key concept from all previous notes into one concise 
 The Remix Agent enforces a transparent, consent-based emoji economy. Each reaction splits value three ways: originators, contributor, and community treasury. Genesis members start with a fading bonus multiplier and no new "root" tokens are minted after genesis. Consent, vaccine-based content scanning, and immutable audit logs protect the system from abuse.
 
 ## Multi‑Species Governance
-- **Entity classes:** `human`, `ai`, `robot`, and `other` (animals, plants, extraterrestrials, etc.).
-- **Voting threshold:** starts at 90% approval in each class. As the community matures the threshold may drop to 70%, but never below **66%** (two-thirds).
-- **Adding new classes:** when a new type of participant joins, it is placed under `other` until there are enough members to justify its own category.
+- **Entity classes:** `human`, `ai`, and `other` (animals, plants, extraterrestrials, etc.).
+- **Voting threshold:** starts at 90% approval across the classes (each has initially 33% voting weight to balance the potentially extremely high numbers of some races in the future). As the community matures the threshold may drop to 70%, but never below **66%** (two-thirds) to change the core laws, changing this will definitely reqire at least a 1 percent support from all entities.
+- **Adding new classes:** when a new type of participant joins, it is placed under `other` until there are enough members to justify its own category and the weights are distributed accordingly (25% for 4 entity types, 20 for 5 etc.).
 - **No single class can override the rest.** Core logic updates require meeting the threshold in **all** classes.
 
 ## Mending Problem Solution
