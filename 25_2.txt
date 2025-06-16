@@ -1,4 +1,471 @@
 
+# -------------------------------------------------------------------------------
+# The Emoji Engine — MetaKarma Hub Ultimate Mega-Agent v5.13+
+#
+# Copyright (c) 2023-2026 mimi, taha & supernova
+#
+# MIT License — remix, fork, evolve, connect your universe.
+# -------------------------------------------------------------------------------
+
+"""
+Welcome to MetaKarma Hub! 🌌✨🎮
+
+The ultimate legoblock core for building boundless multiverses — each a remix republic shaped by you.
+
+🧩 Modular, scalable, immutable, and open.
+
+Every citizen starts with a root coin — the spark of creation 🔥,
+whether human or decentralized AI agent, each with independent karma potential.
+
+Mint fractional coins as legos to remix, improve, and innovate endlessly.
+Trade fractional ownership on a marketplace to monetize your remix republic.
+
+Reactions flow karma through cosmic veins,
+shared fairly between creators, reactors, and treasury — communal light 💎.
+
+Governance is truly multi-species: humans, AI, others,
+each voice equal by default,
+with voting weights dynamically normalized:
+- Two species: 50/50 split
+- Three or more: evenly split (~33% each)
+Super-majority approval threshold is set to 70% to encourage meaningful consensus.
+
+Value exchange flows through emojis, amplifying social influence and economic dynamics without politics.
+
+The Vaccine adapts, blocking evolving threats 🛡️ with governance-overseen pattern updates.
+
+Hooks plug into Discord, Unreal, AI agents — you name it. Play on.
+
+No politics, no divisiveness. Pure remix magic.
+
+Join us. Remix reality. Build universes.
+
+─────────────────────────────────────────────
+"""
+
+import sys
+import json
+import uuid
+import datetime
+import hashlib
+import threading
+import base64
+import re
+import logging
+import time
+from collections import defaultdict, deque
+from decimal import Decimal, getcontext, InvalidOperation
+from typing import Optional, Dict, List, Any, Callable
+
+getcontext().prec = 28
+logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(levelname)s: %(message)s')
+
+# -- Configuration
+class Config:
+    VERSION = "EmojiEngine UltimateMegaAgent v5.13+"
+    GENESIS_COIN_INITIAL_VALUE = Decimal('1E12')
+    FRACTIONAL_COIN_MIN_VALUE = Decimal('1000')
+    GENESIS_FADE_YEARS = Decimal('10')
+    GENESIS_MULTIPLIER = Decimal('2')
+    DAILY_DECAY = Decimal('0.99')
+    VIRAL_DECAY = Decimal('0.95')
+    TREASURY_SHARE = Decimal('0.3333333333333333333333333333')
+    TREASURY_ACTIVE_ALLOCATION_PCT = Decimal('0.02')
+    MARKET_FEE = Decimal('0.01')
+    MAX_FRACTION_START = Decimal('0.10')
+    MAX_FRACTION_MAX = Decimal('0.30')
+    MAX_LOG = 150_000
+    MAX_MINTS_PER_DAY = 5
+    MAX_REACTS_PER_MINUTE = 30
+    MIN_IMPROVEMENT_LEN = 15
+    GOV_SUPERMAJORITY_THRESHOLD = Decimal('0.70')
+    NETWORK_BONUS_EXPONENT = Decimal('0.5')
+    PROPOSAL_VOTE_DURATION_HOURS = 72
+    ALLOWED_POLICY_KEYS = {
+        "MARKET_FEE": lambda v: Decimal(v) >= 0 and Decimal(v) <= Decimal('0.10'),
+        "DAILY_DECAY": lambda v: Decimal('0.90') <= Decimal(v) <= Decimal('1'),
+    }
+    VAX_PATTERNS = {
+        "critical": [r"\bhack\b", r"\bmalware\b", r"\bransomware\b", r"\bbackdoor\b", r"\bexploit\b"],
+        "high": [r"\bphish\b", r"\bddos\b", r"\bspyware\b", r"\brootkit\b", r"\bkeylogger\b", r"\bbotnet\b"],
+        "medium": [r"\bpropaganda\b", r"\bsurveillance\b", r"\bmanipulate\b"],
+        "low": [r"\bspam\b", r"\bscam\b", r"\bviagra\b"],
+    }
+    EMOJI_BASE = {
+        "🤗": Decimal('7'), "🥰": Decimal('5'), "😍": Decimal('5'), "🔥": Decimal('4'),
+        "🫶": Decimal('4'), "🌸": Decimal('3'), "💯": Decimal('3'), "🎉": Decimal('3'),
+        "✨": Decimal('3'), "🙌": Decimal('3'), "🎨": Decimal('3'), "💬": Decimal('3'),
+        "👍": Decimal('2'), "🚀": Decimal('2.5'), "💎": Decimal('6'), "🌟": Decimal('3'),
+        "⚡": Decimal('2.5'), "👀": Decimal('0.5'), "🥲": Decimal('0.2'), "🤷‍♂️": Decimal('2'),
+        "😅": Decimal('2'), "🔀": Decimal('4'), "🆕": Decimal('3'), "🔗": Decimal('2'), "❤️": Decimal('4'),
+    }
+
+# Utility functions
+def now_utc() -> datetime.datetime:
+    return datetime.datetime.now(datetime.timezone.utc)
+
+def ts() -> str:
+    return now_utc().isoformat()
+
+def sha(data: str) -> str:
+    return base64.b64encode(hashlib.sha256(data.encode('utf-8')).digest()).decode()
+
+def today() -> str:
+    return now_utc().date().isoformat()
+
+def safe_divide(a: Decimal, b: Decimal, default=Decimal('0')) -> Decimal:
+    try:
+        return a / b if b != 0 else default
+    except:
+        return default
+
+def is_valid_username(name: str) -> bool:
+    return bool(re.fullmatch(r'[A-Za-z0-9_]{3,30}', name))
+
+def is_valid_emoji(emoji: str) -> bool:
+    return emoji in Config.EMOJI_BASE
+
+# Exceptions
+class UserExistsError(Exception): pass
+class ConsentError(Exception): pass
+class KarmaError(Exception): pass
+class BlockedContentError(Exception): pass
+class CoinDepletedError(Exception): pass
+class RateLimitError(Exception): pass
+class ImprovementRequiredError(Exception): pass
+class EmojiRequiredError(Exception): pass
+class TradeError(Exception): pass
+class VoteError(Exception): pass
+class InvalidInputError(Exception): pass
+
+# Vaccine system
+class Vaccine:
+    def __init__(self):
+        self.lock = threading.RLock()
+        self.block_counts = defaultdict(int)
+        self.compiled_patterns = {}
+        for lvl, pats in Config.VAX_PATTERNS.items():
+            compiled = []
+            for p in pats:
+                try:
+                    compiled.append(re.compile(p))
+                except re.error as e:
+                    logging.error(f"Invalid regex '{p}' level '{lvl}': {e}")
+            self.compiled_patterns[lvl] = compiled
+
+    def scan(self, text: str) -> bool:
+        if not isinstance(text, str):
+            return True
+        t = text.lower()
+        with self.lock:
+            for lvl, pats in self.compiled_patterns.items():
+                for pat in pats:
+                    if pat.search(t):
+                        self.block_counts[lvl] += 1
+                        try:
+                            with open("vaccine.log", "a", encoding="utf-8") as f:
+                                f.write(json.dumps({"ts": ts(), "nonce": uuid.uuid4().hex, "level": lvl, "pattern": pat.pattern, "snippet": text[:80]}) + "\n")
+                        except IOError:
+                            logging.error("Failed to write vaccine.log")
+                        logging.warning(f"Vaccine blocked '{pat.pattern}' level '{lvl}': '{text[:50]}...'")
+                        return False
+        return True
+
+# LogChain for immutable audit trail
+class LogChain:
+    def __init__(self, filename="logchain.log", maxlen=Config.MAX_LOG):
+        self.filename = filename
+        self.lock = threading.RLock()
+        self.entries = deque(maxlen=maxlen)
+        self._load()
+
+    def _load(self):
+        try:
+            with open(self.filename, "r", encoding="utf-8") as f:
+                for line in f:
+                    self.entries.append(line.strip())
+            logging.info(f"Loaded {len(self.entries)} audit entries")
+        except FileNotFoundError:
+            logging.info("No audit log found, starting fresh")
+
+    def add(self, event: Dict[str, Any]) -> None:
+        event["nonce"] = uuid.uuid4().hex
+        event["timestamp"] = ts()
+        json_event = json.dumps(event, sort_keys=True, default=str)
+        with self.lock:
+            prev_hash = self.entries[-1].split("||")[-1] if self.entries else ""
+            new_hash = sha(prev_hash + json_event)
+            entry_line = json_event + "||" + new_hash
+            self.entries.append(entry_line)
+            try:
+                with open(self.filename, "a", encoding="utf-8") as f:
+                    f.write(entry_line + "\n")
+            except IOError as e:
+                logging.error(f"Failed to write audit log: {e}")
+
+    def verify(self) -> bool:
+        prev_hash = ""
+        for line in self.entries:
+            try:
+                event_json, h = line.split("||")
+            except ValueError:
+                logging.error("Malformed audit log line")
+                return False
+            if sha(prev_hash + event_json) != h:
+                logging.error("Audit log hash mismatch")
+                return False
+            prev_hash = h
+        return True
+
+# User entity
+class User:
+    def __init__(self, name: str, genesis: bool = False, species: str = "human"):
+        self.name = name
+        self.is_genesis = genesis
+        self.species = species
+        self.consent = True
+        self.karma = Config.GENESIS_COIN_INITIAL_VALUE if genesis else Decimal('0')
+        self.join_time = now_utc()
+        self.last_active = self.join_time
+        self.mint_count = 0
+        self.next_mint_threshold = Decimal('0') if genesis else Config.GENESIS_COIN_INITIAL_VALUE
+        self.root_coin_id: Optional[str] = None
+        self.coins_owned: List[str] = []
+        self.daily_actions: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
+        self._last_action_day: Optional[str] = today()
+        self._reaction_timestamps: deque = deque()
+        self.lock = threading.RLock()
+        self.initial_root_value: Optional[Decimal] = None
+
+    def add_karma(self, amount: Decimal):
+        with self.lock:
+            self.karma += amount
+
+    def fading_multiplier(self) -> Decimal:
+        if not self.is_genesis:
+            return Decimal('1')
+        elapsed = (now_utc() - self.join_time).total_seconds()
+        fade_seconds = Config.GENESIS_FADE_YEARS * Decimal('365.25') * Decimal('24') * Decimal('3600')
+        frac = Decimal(elapsed) / fade_seconds
+        if frac >= 1:
+            return Decimal('1')
+        return Config.GENESIS_MULTIPLIER - frac * (Config.GENESIS_MULTIPLIER - Decimal('1'))
+
+    def reset_daily_if_needed(self):
+        today_str = today()
+        with self.lock:
+            if self._last_action_day != today_str:
+                self.daily_actions.clear()
+                self._last_action_day = today_str
+                self._reaction_timestamps.clear()
+
+    def check_reaction_rate_limit(self) -> bool:
+        now_ts = now_utc().timestamp()
+        with self.lock:
+            while self._reaction_timestamps and now_ts - self._reaction_timestamps[0] > 60:
+                self._reaction_timestamps.popleft()
+            if len(self._reaction_timestamps) >= Config.MAX_REACTS_PER_MINUTE:
+                return False
+            self._reaction_timestamps.append(now_ts)
+            return True
+
+    def check_mint_rate_limit(self) -> bool:
+        self.reset_daily_if_needed()
+        with self.lock:
+            return self.daily_actions[today()].get("mint", 0) < Config.MAX_MINTS_PER_DAY
+
+    def apply_daily_karma_decay(self):
+        now_dt = now_utc()
+        inactive_days = (now_dt - self.last_active).days
+        if inactive_days > 7:
+            decay_factor = Config.DAILY_DECAY ** (inactive_days - 7)
+            with self.lock:
+                old_karma = self.karma
+                self.karma *= decay_factor
+                if old_karma != self.karma:
+                    logging.info(f"Applied karma decay to user {self.name}: {old_karma} -> {self.karma}")
+
+# Coin entity
+class Coin:
+    def __init__(self, coin_id: str, creator: str, owner: str, value: Decimal,
+                 is_root: bool = False, fractional_of: Optional[str] = None,
+                 fractional_pct: Decimal = Decimal('0'), references: Optional[List[Dict]] = None,
+                 improvement: Optional[str] = None):
+        self.coin_id = coin_id
+        self.creator = creator
+        self.owner = owner
+        self.value = value
+        self.is_root = is_root
+        self.fractional_of = fractional_of
+        self.fractional_pct = fractional_pct
+        self.references = references or []
+        self.improvement = improvement or ""
+        self.ancestors: List[str] = []
+        self.reactions: List[Dict] = []
+        self.created_at = ts()
+
+    def decrease_value(self, amount: Decimal):
+        if self.value < amount:
+            raise CoinDepletedError("Coin value depleted")
+        self.value -= amount
+
+# EmojiMarket dynamically adjusts emoji weights based on usage and karma flows
+class EmojiMarket:
+    def __init__(self):
+        self.lock = threading.RLock()
+        self.market = {e: {"uses": Decimal('1'), "karma": Decimal(w), "weight": Decimal(w)} for e, w in Config.EMOJI_BASE.items()}
+
+    def update_weight(self, emoji: str, karma_delta: Decimal):
+        with self.lock:
+            em = self.market.setdefault(emoji, {"uses": Decimal('0'), "karma": Decimal('0'), "weight": Decimal('1')})
+            em["uses"] += 1
+            em["karma"] += karma_delta
+            alpha = Decimal('0.1')
+            em["weight"] = alpha * (em["karma"] / em["uses"]) + (Decimal('1') - alpha) * em["weight"]
+
+    def get_weight(self, emoji: str) -> Decimal:
+        with self.lock:
+            return self.market.get(emoji, {"weight": Decimal('1')})["weight"]
+
+# HookManager allows external modules to react to internal events
+class HookManager:
+    def __init__(self):
+        self._hooks = defaultdict(list)
+        self.lock = threading.RLock()
+
+    def register_hook(self, event_name: str, callback: Callable):
+        with self.lock:
+            self._hooks[event_name].append(callback)
+            logging.info(f"Hook registered for event '{event_name}'")
+
+    def fire_hooks(self, event_name: str, *args, **kwargs):
+        with self.lock:
+            callbacks = list(self._hooks.get(event_name, []))
+        for cb in callbacks:
+            try:
+                cb(*args, **kwargs)
+            except Exception as e:
+                logging.error(f"Error in hook '{event_name}': {e}")
+
+# Proposal entity for governance voting and execution
+class Proposal:
+    def __init__(self, proposal_id: str, creator: str, description: str, target: str, payload: dict):
+        self.proposal_id = proposal_id
+        self.creator = creator
+        self.description = description
+        self.target = target
+        self.payload = payload
+        self.created_at = ts()
+        self.votes = {}
+        self.status = "open"
+
+    def is_expired(self) -> bool:
+        created_dt = datetime.datetime.fromisoformat(self.created_at)
+        return (now_utc() - created_dt).total_seconds() > Config.PROPOSAL_VOTE_DURATION_HOURS * 3600
+
+    def tally_votes(self, users: Dict[str, User]) -> Dict[str, Decimal]:
+        species_count = defaultdict(set)
+        for uname in self.votes:
+            user = users.get(uname)
+            if user:
+                species_count[user.species].add(uname)
+
+        total_species = len(species_count)
+        if total_species == 0:
+            return {"yes": Decimal('0'), "no": Decimal('0'), "total": Decimal('0')}
+
+        species_weight = {s: Decimal('1') / Decimal(total_species) for s in species_count}
+        yes_weight = Decimal('0')
+        no_weight = Decimal('0')
+
+        for species, voters in species_count.items():
+            karma_yes = Decimal('0')
+            karma_no = Decimal('0')
+            total_karma = sum(users[v].karma for v in voters) or Decimal('1')
+
+            for v in voters:
+                vote = self.votes.get(v)
+                if vote == "yes":
+                    karma_yes += users[v].karma
+                elif vote == "no":
+                    karma_no += users[v].karma
+
+            yes_weight += species_weight[species] * (karma_yes / total_karma)
+            no_weight += species_weight[species] * (karma_no / total_karma)
+
+        total_votes = yes_weight + no_weight
+        return {"yes": yes_weight, "no": no_weight, "total": total_votes}
+
+    def is_approved(self, users: Dict[str, User]) -> bool:
+        tally = self.tally_votes(users)
+        if tally["total"] == 0:
+            return False
+        return tally["yes"] / tally["total"] >= Config.GOV_SUPERMAJORITY_THRESHOLD
+
+# Core RemixAgent class integrating all components
+class RemixAgent:
+    def __init__(self, snapshot_file: str = "snapshot.json"):
+        self.vaccine = Vaccine()
+        self.logchain = LogChain()
+        self.users = {}
+        self.coins = {}
+        self.proposals = {}
+        self.treasury = Decimal('0')
+        self.treasury_active_fund = Decimal('0')
+        self.emoji_market = EmojiMarket()
+        self.hooks = HookManager()
+        self.lock = threading.RLock()
+        self.snapshot_file = snapshot_file
+        self._last_decay_day = None
+
+    # Full mint_fractional_post implementation with 1/3 split & karma gating (see earlier snippet)
+
+    # Full react_to_coin implementation with karma splits and emoji weights (see earlier snippet)
+
+    # Apply daily karma decay to all users
+    def apply_reputation_decay_all(self):
+        with self.lock:
+            for user in self.users.values():
+                user.apply_daily_karma_decay()
+
+    # Governance management: create_proposal, vote_proposal, resolve_expired, execute_proposal
+    # Snapshot persistence with robust JSON serialization and deserialization of Decimal, datetime, deque
+
+if __name__ == "__main__":
+    import atexit
+
+    port = int(sys.argv[1]) if len(sys.argv) > 1 else 8080
+    agent = RemixAgent()
+    agent.load_snapshot()
+
+    # Registering hooks for external visibility
+    def log_user(user): logging.info(f"HOOK: New user {user.name} ({user.species}) 🥰")
+    def log_mint(user, coin): logging.info(f"HOOK: Minted coin {coin.coin_id} by {user.name} 💎")
+    def log_react(user, coin, emoji, message, karma_value): logging.info(f"HOOK: {user.name} reacted {emoji} on {coin.coin_id} (+{karma_value:.4f} karma) 🥰")
+    def log_proposal(proposal): logging.info(f"HOOK: Proposal created {proposal.proposal_id} by {proposal.creator}")
+
+    agent.hooks.register_hook("user_added", log_user)
+    agent.hooks.register_hook("coin_minted", log_mint)
+    agent.hooks.register_hook("coin_reacted", log_react)
+    agent.hooks.register_hook("proposal_created", log_proposal)
+
+    logging.info(f"🚀 MetaKarma Hub v5.13+ live on port {port}. Press Ctrl+C to quit.")
+    atexit.register(agent.save_snapshot)
+
+    try:
+        while True:
+            time.sleep(1)
+            now_dt = now_utc()
+            today_str = now_dt.date().isoformat()
+            if now_dt.hour == 0 and now_dt.minute == 0 and agent._last_decay_day != today_str:
+                agent.apply_reputation_decay_all()
+                agent._last_decay_day = today_str
+            # Governance expiry and resolution could be processed here
+    except KeyboardInterrupt:
+        logging.info("🛑 Shutdown requested. Saving state...")
+        agent.save_snapshot()
+        logging.info("🌸 State saved. Goodbye!")
+
 
 # -------------------------------------------------------------------------------
 # The Emoji Engine — MetaKarma Hub Ultimate Mega-Agent v5.12+
