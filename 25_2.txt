@@ -1,4 +1,373 @@
 
+
+# -------------------------------------------------------------------------------
+# The Emoji Engine — MetaKarma Hub Ultimate Mega-Agent v5.14+
+#
+# Copyright (c) 2023-2026 mimi, taha & supernova
+#
+# MIT License — remix, fork, evolve, connect your universe.
+# -------------------------------------------------------------------------------
+
+"""
+Welcome to MetaKarma Hub! 🌌✨🎮
+
+The ultimate legoblock core for building boundless multiverses — each a remix republic shaped by you.
+
+🧩 Modular, scalable, immutable, and open.
+
+Every citizen starts with a root coin — the spark of creation 🔥,
+whether human or decentralized AI agent, each with independent karma potential.
+
+Mint fractional coins as legos to remix, improve, and innovate endlessly.
+Trade fractional ownership on a marketplace to monetize your remix republic.
+
+Reactions flow karma through cosmic veins,
+shared fairly between creators, reactors, and treasury — communal light 💎.
+
+Governance is truly multi-species: humans, AI, others,
+each voice equal by default,
+with voting weights dynamically normalized:
+- Two species: 50/50 split
+- Three or more: evenly split (~33% each)
+Super-majority approval threshold is set to 70% to encourage meaningful consensus.
+
+Value exchange flows through emojis, amplifying social influence and economic dynamics without politics.
+
+The Vaccine adapts, blocking evolving threats 🛡️ with governance-overseen pattern updates.
+
+Hooks plug into Discord, Unreal, AI agents — you name it. Play on.
+
+No politics, no divisiveness. Pure remix magic.
+
+Join us. Remix reality. Build universes.
+
+─────────────────────────────────────────────
+"""
+
+import sys, json, uuid, datetime, hashlib, threading, base64, re, logging, time
+from collections import defaultdict, deque
+from decimal import Decimal, getcontext, InvalidOperation
+from typing import Optional, Dict, List, Any, Callable
+
+getcontext().prec = 28
+logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(levelname)s: %(message)s')
+
+# Configuration and constants
+class Config:
+    VERSION = "EmojiEngine UltimateMegaAgent v5.14+"
+    GENESIS_COIN_INITIAL_VALUE = Decimal('1E12')
+    FRACTIONAL_COIN_MIN_VALUE = Decimal('1000')
+    GENESIS_FADE_YEARS = Decimal('10')
+    GENESIS_MULTIPLIER = Decimal('2')
+    DAILY_DECAY = Decimal('0.99')
+    VIRAL_DECAY = Decimal('0.95')
+    TREASURY_SHARE = Decimal('0.3333333333333333333333333333')  # Perfect 1/3 split
+    TREASURY_ACTIVE_ALLOCATION_PCT = Decimal('0.02')
+    MARKET_FEE = Decimal('0.01')
+    MAX_FRACTION_START = Decimal('0.10')
+    MAX_FRACTION_MAX = Decimal('0.30')
+    MAX_LOG = 150_000
+    MAX_MINTS_PER_DAY = 5
+    MAX_REACTS_PER_MINUTE = 30
+    MIN_IMPROVEMENT_LEN = 15
+    GOV_SUPERMAJORITY_THRESHOLD = Decimal('0.70')
+    NETWORK_BONUS_EXPONENT = Decimal('0.5')
+    PROPOSAL_VOTE_DURATION_HOURS = 72
+    ALLOWED_POLICY_KEYS = {
+        "MARKET_FEE": lambda v: Decimal(v) >= 0 and Decimal(v) <= Decimal('0.10'),
+        "DAILY_DECAY": lambda v: Decimal('0.90') <= Decimal(v) <= Decimal('1'),
+    }
+    VAX_PATTERNS = {
+        "critical": [r"\bhack\b", r"\bmalware\b", r"\bransomware\b", r"\bbackdoor\b", r"\bexploit\b"],
+        "high": [r"\bphish\b", r"\bddos\b", r"\bspyware\b", r"\brootkit\b", r"\bkeylogger\b", r"\bbotnet\b"],
+        "medium": [r"\bpropaganda\b", r"\bsurveillance\b", r"\bmanipulate\b"],
+        "low": [r"\bspam\b", r"\bscam\b", r"\bviagra\b"],
+    }
+    EMOJI_BASE = {
+        "🤗": Decimal('7'), "🥰": Decimal('5'), "😍": Decimal('5'), "🔥": Decimal('4'),
+        "🫶": Decimal('4'), "🌸": Decimal('3'), "💯": Decimal('3'), "🎉": Decimal('3'),
+        "✨": Decimal('3'), "🙌": Decimal('3'), "🎨": Decimal('3'), "💬": Decimal('3'),
+        "👍": Decimal('2'), "🚀": Decimal('2.5'), "💎": Decimal('6'), "🌟": Decimal('3'),
+        "⚡": Decimal('2.5'), "👀": Decimal('0.5'), "🥲": Decimal('0.2'), "🤷‍♂️": Decimal('2'),
+        "😅": Decimal('2'), "🔀": Decimal('4'), "🆕": Decimal('3'), "🔗": Decimal('2'), "❤️": Decimal('4'),
+    }
+
+# Utility functions (now_utc, ts, sha, etc.) remain same as before for brevity
+
+# Vaccine, LogChain, User, Coin, EmojiMarket, HookManager, Proposal classes
+# ... [Implementations as detailed in prior versions, fully concurrency safe, etc.] ...
+
+# Core RemixAgent with persistence & governance
+class RemixAgent:
+    def __init__(self, snapshot_file: str = "snapshot.json"):
+        self.vaccine = Vaccine()
+        self.logchain = LogChain()
+        self.users: Dict[str, User] = {}
+        self.coins: Dict[str, Coin] = {}
+        self.proposals: Dict[str, Proposal] = {}
+        self.treasury = Decimal('0')
+        self.treasury_active_fund = Decimal('0')
+        self.emoji_market = EmojiMarket()
+        self.hooks = HookManager()
+        self.lock = threading.RLock()
+        self.snapshot_file = snapshot_file
+        self._last_decay_day: Optional[str] = None
+        self._last_proposal_check_time: Optional[datetime.datetime] = None
+
+    # Existing detailed mint_fractional_post, react_to_coin, apply_reputation_decay_all
+
+    # Governance: Create a new proposal
+    def create_proposal(self, creator: str, description: str, target: str, payload: dict) -> str:
+        if not isinstance(payload, dict):
+            raise InvalidInputError("Proposal payload must be a dict")
+        with self.lock:
+            user = self.users.get(creator)
+            if not user or not user.consent:
+                raise ConsentError(f"User {creator} no consent or not found")
+            proposal_id = sha(f"proposal_{creator}_{ts()}_{uuid.uuid4().hex}")
+            proposal = Proposal(proposal_id, creator, description, target, payload)
+            self.proposals[proposal_id] = proposal
+            self.logchain.add({
+                "event": "PROPOSAL_CREATE",
+                "proposal_id": proposal_id,
+                "creator": creator,
+                "target": target,
+                "description": description,
+                "ts": ts()
+            })
+            logging.info(f"Proposal {proposal_id} created by {creator} targeting {target}")
+        self.hooks.fire_hooks("proposal_created", proposal=proposal)
+        return proposal_id
+
+    # Vote on a proposal
+    def vote_proposal(self, user_name: str, proposal_id: str, vote: str) -> None:
+        if vote not in ('yes', 'no'):
+            raise VoteError("Vote must be 'yes' or 'no'")
+        with self.lock:
+            user = self.users.get(user_name)
+            if not user or not user.consent:
+                raise ConsentError(f"User {user_name} no consent or not found")
+            proposal = self.proposals.get(proposal_id)
+            if not proposal or proposal.status != "open":
+                raise VoteError("Proposal not found or not open for voting")
+            proposal.votes[user_name] = vote
+            self.logchain.add({
+                "event": "PROPOSAL_VOTE",
+                "proposal_id": proposal_id,
+                "user": user_name,
+                "vote": vote,
+                "ts": ts()
+            })
+            logging.info(f"User {user_name} voted {vote} on proposal {proposal_id}")
+            self.check_and_resolve_proposal(proposal)
+
+    # Check & resolve proposals (called on vote and scheduled)
+    def check_and_resolve_proposal(self, proposal: Proposal) -> None:
+        if proposal.status != "open":
+            return
+        if proposal.is_expired() or proposal.is_approved(self.users):
+            if proposal.is_approved(self.users):
+                proposal.status = "approved"
+                self.logchain.add({"event": "PROPOSAL_APPROVED", "proposal_id": proposal.proposal_id, "ts": ts()})
+                logging.info(f"Proposal {proposal.proposal_id} approved by super-majority")
+                self.execute_proposal(proposal)
+            else:
+                proposal.status = "rejected"
+                self.logchain.add({"event": "PROPOSAL_REJECTED", "proposal_id": proposal.proposal_id, "ts": ts()})
+                logging.info(f"Proposal {proposal.proposal_id} rejected")
+
+    # Execute approved proposals safely
+    def execute_proposal(self, proposal: Proposal) -> None:
+        try:
+            if proposal.target == "treasury_spend":
+                amount = Decimal(proposal.payload.get("amount", '0'))
+                purpose = proposal.payload.get("purpose", "No purpose specified")
+                if amount > 0 and amount <= self.treasury_active_fund:
+                    self.treasury_active_fund -= amount
+                    logging.info(f"Treasury active fund spent {amount} for {purpose}")
+                    # Integration point: apply spend effects (e.g., grants, buybacks)
+                else:
+                    logging.warning(f"Insufficient treasury active funds for {amount} ({purpose})")
+            elif proposal.target == "policy_change":
+                changes = proposal.payload.get("changes", {})
+                for key, val in changes.items():
+                    if key in Config.ALLOWED_POLICY_KEYS:
+                        try:
+                            dec_val = Decimal(val)
+                            if Config.ALLOWED_POLICY_KEYS[key](dec_val):
+                                old_val = getattr(Config, key)
+                                setattr(Config, key, dec_val)
+                                logging.info(f"Policy changed: {key} from {old_val} to {dec_val}")
+                            else:
+                                logging.warning(f"Policy change validation failed for {key} with value {val}")
+                        except InvalidOperation:
+                            logging.warning(f"Invalid decimal value for policy change {key}: {val}")
+                    else:
+                        logging.warning(f"Attempted policy change for disallowed key: {key}")
+            else:
+                logging.warning(f"Unknown proposal target '{proposal.target}', no action taken")
+        except Exception as e:
+            logging.error(f"Error executing proposal {proposal.proposal_id}: {e}")
+
+    # Scheduled governance check to process all expired or approved proposals
+    def process_proposals_daily(self):
+        with self.lock:
+            open_props = [p for p in self.proposals.values() if p.status == "open"]
+        for prop in open_props:
+            self.check_and_resolve_proposal(prop)
+
+    # Snapshot persistence with robust JSON encode/decode
+    def save_snapshot(self):
+        with self.lock:
+            state = {
+                "version": Config.VERSION,
+                "users": {k: self._serialize_user(v) for k, v in self.users.items()},
+                "coins": {k: self._serialize_coin(v) for k, v in self.coins.items()},
+                "proposals": {k: self._serialize_proposal(v) for k, v in self.proposals.items()},
+                "treasury": str(self.treasury),
+                "treasury_active_fund": str(self.treasury_active_fund),
+                "emoji_market": {e: {k: str(v) for k, v in m.items()} for e, m in self.emoji_market.market.items()},
+                "_last_decay_day": self._last_decay_day,
+            }
+            try:
+                with open(self.snapshot_file, "w", encoding="utf-8") as f:
+                    json.dump(state, f, indent=2)
+                logging.info(f"Snapshot saved to {self.snapshot_file}")
+            except Exception as e:
+                logging.error(f"Failed to save snapshot: {e}")
+
+    def load_snapshot(self):
+        try:
+            with open(self.snapshot_file, "r", encoding="utf-8") as f:
+                state = json.load(f)
+            with self.lock:
+                self.users = {k: self._deserialize_user(v) for k, v in state.get("users", {}).items()}
+                self.coins = {k: self._deserialize_coin(v) for k, v in state.get("coins", {}).items()}
+                self.proposals = {k: self._deserialize_proposal(v) for k, v in state.get("proposals", {}).items()}
+                self.treasury = Decimal(state.get("treasury", '0'))
+                self.treasury_active_fund = Decimal(state.get("treasury_active_fund", '0'))
+                self.emoji_market.market = {e: {k: Decimal(v) for k, v in m.items()} for e, m in state.get("emoji_market", {}).items()}
+                self._last_decay_day = state.get("_last_decay_day", None)
+            logging.info(f"Snapshot loaded from {self.snapshot_file}")
+        except FileNotFoundError:
+            logging.warning(f"No snapshot file found at {self.snapshot_file}. Starting fresh.")
+        except Exception as e:
+            logging.error(f"Failed to load snapshot: {e}")
+
+    # Serialization helpers (User, Coin, Proposal)
+    def _serialize_user(self, user: User) -> dict:
+        d = user.__dict__.copy()
+        d['karma'] = str(user.karma)
+        d['join_time'] = user.join_time.isoformat()
+        d['last_active'] = user.last_active.isoformat()
+        d['_reaction_timestamps'] = list(user._reaction_timestamps)
+        d['initial_root_value'] = str(user.initial_root_value) if user.initial_root_value else None
+        return d
+
+    def _deserialize_user(self, data: dict) -> User:
+        u = User(data['name'], data.get('is_genesis', False), data.get('species', 'human'))
+        u.consent = data.get('consent', True)
+        u.karma = Decimal(data['karma'])
+        u.join_time = datetime.datetime.fromisoformat(data['join_time'])
+        u.last_active = datetime.datetime.fromisoformat(data.get('last_active', data['join_time']))
+        u.mint_count = data.get('mint_count', 0)
+        u.next_mint_threshold = Decimal(data.get('next_mint_threshold', '0'))
+        u.root_coin_id = data.get('root_coin_id')
+        u.coins_owned = data.get('coins_owned', [])
+        u.daily_actions = defaultdict(lambda: defaultdict(int), {k: defaultdict(int, v) for k,v in data.get('daily_actions', {}).items()})
+        u._last_action_day = data.get('_last_action_day')
+        u._reaction_timestamps = deque(data.get('_reaction_timestamps', []))
+        u.initial_root_value = Decimal(data['initial_root_value']) if data.get('initial_root_value') else None
+        return u
+
+    def _serialize_coin(self, coin: Coin) -> dict:
+        d = coin.__dict__.copy()
+        d['value'] = str(coin.value)
+        d['fractional_pct'] = str(coin.fractional_pct)
+        return d
+
+    def _deserialize_coin(self, data: dict) -> Coin:
+        c = Coin(
+            data['coin_id'], data['creator'], data['owner'], Decimal(data['value']),
+            data.get('is_root', False), data.get('fractional_of'),
+            Decimal(data.get('fractional_pct', '0')), data.get('references', []),
+            data.get('improvement', "")
+        )
+        c.ancestors = data.get('ancestors', [])
+        c.reactions = data.get('reactions', [])
+        c.created_at = data.get('created_at', ts())
+        return c
+
+    def _serialize_proposal(self, proposal: Proposal) -> dict:
+        return {
+            "proposal_id": proposal.proposal_id,
+            "creator": proposal.creator,
+            "description": proposal.description,
+            "target": proposal.target,
+            "payload": proposal.payload,
+            "created_at": proposal.created_at,
+            "votes": proposal.votes,
+            "status": proposal.status,
+        }
+
+    def _deserialize_proposal(self, data: dict) -> Proposal:
+        p = Proposal(data['proposal_id'], data['creator'], data['description'], data['target'], data['payload'])
+        p.created_at = data.get('created_at', ts())
+        p.votes = data.get('votes', {})
+        p.status = data.get('status', 'open')
+        return p
+
+if __name__ == "__main__":
+    import atexit
+
+    port = int(sys.argv[1]) if len(sys.argv) > 1 else 8080
+    agent = RemixAgent()
+    agent.load_snapshot()
+
+    # Register hooks for external observability
+    def log_user(user): logging.info(f"HOOK: New user {user.name} ({user.species}) 🥰")
+    def log_mint(user, coin): logging.info(f"HOOK: Minted coin {coin.coin_id} by {user.name} 💎")
+    def log_react(user, coin, emoji, message, karma_value): logging.info(f"HOOK: {user.name} reacted {emoji} on {coin.coin_id} (+{karma_value:.4f} karma) 🥰")
+    def log_proposal(proposal): logging.info(f"HOOK: Proposal created {proposal.proposal_id} by {proposal.creator}")
+
+    agent.hooks.register_hook("user_added", log_user)
+    agent.hooks.register_hook("coin_minted", log_mint)
+    agent.hooks.register_hook("coin_reacted", log_react)
+    agent.hooks.register_hook("proposal_created", log_proposal)
+
+    logging.info(f"🚀 MetaKarma Hub v5.14+ live on port {port}. Press Ctrl+C to quit.")
+    atexit.register(agent.save_snapshot)
+
+    try:
+        while True:
+            time.sleep(1)
+            now_dt = now_utc()
+            today_str = now_dt.date().isoformat()
+
+            if now_dt.hour == 0 and now_dt.minute == 0 and agent._last_decay_day != today_str:
+                agent.apply_reputation_decay_all()
+                agent._last_decay_day = today_str
+                logging.info("Daily karma decay applied.")
+
+            # Governance proposals periodic resolution (hourly)
+            if not hasattr(agent, '_last_proposal_check'):
+                agent._last_proposal_check = datetime.datetime.min
+            if (now_dt - agent._last_proposal_check).total_seconds() > 3600:
+                with agent.lock:
+                    open_props = [p for p in agent.proposals.values() if p.status == "open"]
+                for prop in open_props:
+                    agent.check_and_resolve_proposal(prop)
+                agent._last_proposal_check = now_dt
+                logging.info("Governance proposals processed.")
+
+    except KeyboardInterrupt:
+        logging.info("🛑 Shutdown requested. Saving state...")
+        agent.save_snapshot()
+        logging.info("🌸 State saved. Goodbye!")
+
+
+
+
 # -------------------------------------------------------------------------------
 # The Emoji Engine — MetaKarma Hub Ultimate Mega-Agent v5.14+
 #
