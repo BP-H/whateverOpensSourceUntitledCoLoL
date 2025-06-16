@@ -24,7 +24,7 @@ Trade fractional ownership on a marketplace to monetize your remix republic.
 Reactions flow karma through cosmic veins,
 shared fairly between creators, reactors, and treasury — communal light 💎.
 
-Governance is truly multi-species: humans, AI, others,
+Governance is truly multi-species: humans, AI, others, IMPORTANT: each has a weight of 50% if 2 species, 33.333 if 3 and so on...
 each voice equal by default,
 with voting weights dynamically normalized:
 - Two species: 50/50 split
