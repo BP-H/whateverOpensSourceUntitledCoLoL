@@ -1,3 +1,4 @@
+
 # -------------------------------------------------------------------------------
 # The Emoji Engine — MetaKarma Hub Ultimate Mega-Agent v5.17+
 #
@@ -354,8 +355,6 @@ class User:
         user._reaction_timestamps = deque(data.get("_reaction_timestamps", []))
         user.initial_root_value = Decimal(data.get("initial_root_value")) if data.get("initial_root_value") else None
         return user
-
-
 class Coin:
     def __init__(self, coin_id: str, creator: str, owner: str, value: Decimal,
                  is_root: bool = False, fractional_of: Optional[str] = None,
@@ -570,7 +569,6 @@ class RemixAgent:
         # Add root coin (single coin per user, fully divisible)
         coin = Coin(root_coin_id, name, name, root_coin_value, True, genesis_creator=name)
         self.coins[root_coin_id] = coin
-
     def _do_mint_coin(self, user_name, new_coin_id, mint_value, new_coin_value,
                       root_coin_id, genesis_creator, references,
                       improvement, fractional_pct, ancestors, created_at):
@@ -751,7 +749,6 @@ class RemixAgent:
         proposal = self.proposals[proposal_id]
         proposal.status = status
         self._last_proposal_check = now_utc()
-
     def _do_update_config(self, key, value):
         Config.update_policy(key, value)
         logging.info(f"Config updated: {key} = {value}")
@@ -945,4 +942,324 @@ class RemixAgent:
         return listing_id
 
     @acquire_agent_lock
-    def buy
+    def buy_coin(self, buyer: str, listing_id: str):
+        if buyer not in self.users:
+            raise InvalidInputError(f"Buyer '{buyer}' not found")
+        if listing_id not in self.marketplace_listings:
+            raise InvalidInputError(f"Listing '{listing_id}' not found")
+        listing = self.marketplace_listings[listing_id]
+        if listing["status"] != "active":
+            raise TradeError("Listing not active")
+        seller = listing["seller"]
+        coin_id = listing["coin_id"]
+        price = Decimal(listing["price"])
+        fee = price * Config.MARKET_FEE
+
+        buyer_user = self.users[buyer]
+        seller_user = self.users[seller]
+        buyer_root_coin = self.coins.get(buyer_user.root_coin_id)
+        if not buyer_root_coin or buyer_root_coin.value < (price + fee):
+            raise InsufficientFundsError("Buyer has insufficient funds")
+
+        event = {
+            "event": "BUY_COIN",
+            "buyer": buyer,
+            "seller": seller,
+            "coin_id": coin_id,
+            "price": str(price),
+            "fee_amount": str(fee),
+            "listing_id": listing_id,
+            "sold_at": ts(),
+        }
+        self.logchain.add(event)
+        self._apply_event(event)
+        self.hooks.fire_hooks("coin_sold", buyer=buyer, seller=seller, coin_id=coin_id, price=price)
+        logging.info(f"User {buyer} bought coin {coin_id} from {seller} for {price}")
+
+    @acquire_agent_lock
+    def transfer_coin(self, from_user: str, to_user: str, coin_id: str):
+        if from_user not in self.users or to_user not in self.users:
+            raise InvalidInputError("User(s) not found")
+        coin = self.coins.get(coin_id)
+        if not coin or coin.owner != from_user:
+            raise TradeError("Sender does not own the coin")
+        event = {
+            "event": "TRANSFER_COIN",
+            "from_user": from_user,
+            "to_user": to_user,
+            "coin_id": coin_id,
+            "timestamp": ts(),
+        }
+        self.logchain.add(event)
+        self._apply_event(event)
+        self.hooks.fire_hooks("coin_transferred", from_user=from_user, to_user=to_user, coin_id=coin_id)
+        logging.info(f"Transferred coin {coin_id} from {from_user} to {to_user}")
+
+    # Governance APIs: create, vote, execute, close proposals
+    @acquire_agent_lock
+    def create_proposal(self, creator: str, description: str, target: str, payload: dict) -> str:
+        if creator not in self.users:
+            raise InvalidInputError(f"Creator '{creator}' not found")
+        proposal_id = uuid.uuid4().hex
+        event = {
+            "event": "CREATE_PROPOSAL",
+            "proposal_id": proposal_id,
+            "creator": creator,
+            "description": description,
+            "target": target,
+            "payload": payload,
+            "timestamp": ts(),
+        }
+        self.logchain.add(event)
+        self._apply_event(event)
+        self.hooks.fire_hooks("proposal_created", proposal_id=proposal_id)
+        logging.info(f"Proposal created by {creator} with id {proposal_id}")
+        return proposal_id
+
+    @acquire_agent_lock
+    def vote_proposal(self, proposal_id: str, voter: str, vote: str):
+        if voter not in self.users:
+            raise InvalidInputError(f"Voter '{voter}' not found")
+        if proposal_id not in self.proposals:
+            raise InvalidInputError(f"Proposal '{proposal_id}' not found")
+        if vote not in ("yes", "no"):
+            raise VoteError("Invalid vote value")
+        proposal = self.proposals[proposal_id]
+        if proposal.is_expired() or proposal.status != "open":
+            raise VoteError("Proposal not open for voting")
+
+        event = {
+            "event": "VOTE_PROPOSAL",
+            "proposal_id": proposal_id,
+            "voter": voter,
+            "vote": vote,
+            "timestamp": ts(),
+        }
+        self.logchain.add(event)
+        self._apply_event(event)
+        self.hooks.fire_hooks("proposal_voted", proposal_id=proposal_id, voter=voter, vote=vote)
+        logging.info(f"User {voter} voted '{vote}' on proposal {proposal_id}")
+
+    @acquire_agent_lock
+    def execute_proposal(self, proposal_id: str):
+        if proposal_id not in self.proposals:
+            raise InvalidInputError(f"Proposal '{proposal_id}' not found")
+        proposal = self.proposals[proposal_id]
+        if proposal.status != "open":
+            raise VoteError("Proposal not open for execution")
+        if not proposal.is_approved(self.users):
+            raise VoteError("Proposal not approved for execution")
+
+        event = {
+            "event": "EXECUTE_PROPOSAL",
+            "proposal_id": proposal_id,
+            "timestamp": ts(),
+        }
+        self.logchain.add(event)
+        self._apply_event(event)
+        self.hooks.fire_hooks("proposal_executed", proposal_id=proposal_id)
+        logging.info(f"Proposal {proposal_id} executed")
+
+    @acquire_agent_lock
+    def close_proposal(self, proposal_id: str, status: str):
+        if proposal_id not in self.proposals:
+            raise InvalidInputError(f"Proposal '{proposal_id}' not found")
+        if status not in ("closed", "rejected", "executed"):
+            raise InvalidInputError(f"Invalid proposal close status: {status}")
+        event = {
+            "event": "CLOSE_PROPOSAL",
+            "proposal_id": proposal_id,
+            "status": status,
+            "timestamp": ts(),
+        }
+        self.logchain.add(event)
+        self._apply_event(event)
+        self.hooks.fire_hooks("proposal_closed", proposal_id=proposal_id, status=status)
+        logging.info(f"Proposal {proposal_id} closed with status {status}")
+
+    # Daily treasury decay and karma decay
+    @acquire_agent_lock
+    def apply_daily_decay(self):
+        today_str = today()
+        if self._last_decay_day == today_str:
+            return  # Already applied today
+
+        treasury_allocation = self.treasury * (Decimal('1') - Config.DAILY_DECAY)
+        if treasury_allocation <= 0:
+            return
+
+        event = {
+            "event": "DAILY_DECAY",
+            "treasury_allocation": str(treasury_allocation),
+            "timestamp": ts(),
+        }
+        self.logchain.add(event)
+        self._apply_event(event)
+        self.hooks.fire_hooks("daily_decay", amount=treasury_allocation)
+        logging.info(f"Daily decay applied: {treasury_allocation}")
+
+    # Event application logic (event sourcing)
+    def _apply_event(self, event: Dict[str, Any]):
+        et = event["event"]
+        timestamp = event.get("timestamp", ts())
+        try:
+            if et == "ADD_USER":
+                self._do_add_user(
+                    name=event["user"],
+                    is_genesis=event.get("genesis", False),
+                    species=event.get("species", "human"),
+                    karma=Decimal(event.get("karma", '0')),
+                    join_time=datetime.datetime.fromisoformat(timestamp),
+                    last_active=datetime.datetime.fromisoformat(timestamp),
+                    root_coin_id=event["coin_id"],
+                    coins_owned=event.get("coins_owned", []),
+                    initial_root_value=Decimal(event["initial_root_value"]),
+                    consent=event.get("consent", True),
+                    root_coin_value=Decimal(event["root_value"])
+                )
+            elif et == "MINT":
+                self._do_mint_coin(
+                    user_name=event["user"],
+                    new_coin_id=event["coin"],
+                    mint_value=Decimal(event["val"]),
+                    new_coin_value=Decimal(event.get("new_coin_value", '0')) or Decimal(event["val"]),
+                    root_coin_id=event["root_coin_id"],
+                    genesis_creator=event.get("genesis_creator", ""),
+                    references=event.get("references", []),
+                    improvement=event.get("improvement", ""),
+                    fractional_pct=Decimal(event.get("fraction_percent", '0')),
+                    ancestors=event.get("ancestors", []),
+                    created_at=timestamp
+                )
+            elif et == "REACT":
+                self._do_react_to_coin(
+                    reactor=event["reactor"],
+                    coin_id=event["coin"],
+                    emoji=event["emoji"],
+                    message=event.get("message"),
+                    coin_value_reactor=Decimal(event["coin_value_reactor"]),
+                    coin_value_creator=Decimal(event["coin_value_creator"]),
+                    coin_value_treasury=Decimal(event["coin_value_treasury"]),
+                    viral_decay=Decimal(event.get("viral_decay", '1')),
+                    emoji_weight_used=Decimal(event.get("emoji_weight_used", '1')),
+                    network_bonus=Decimal(event.get("network_bonus", '1')),
+                    decay_factor_used=Decimal(event.get("decay_factor_used", '1')),
+                    timestamp=timestamp
+                )
+            elif et == "LIST_FOR_SALE":
+                self._do_list_coin_for_sale(
+                    listing_id=event["listing_id"],
+                    seller=event["seller"],
+                    coin_id=event["coin_id"],
+                    price=Decimal(event["price"]),
+                    created_at=timestamp
+                )
+            elif et == "BUY_COIN":
+                self._do_buy_coin(
+                    buyer=event["buyer"],
+                    seller=event["seller"],
+                    coin_id=event["coin_id"],
+                    price=Decimal(event["price"]),
+                    fee_amount=Decimal(event["fee_amount"]),
+                    listing_id=event["listing_id"],
+                    sold_at=event.get("sold_at", timestamp)
+                )
+            elif et == "TRANSFER_COIN":
+                self._do_transfer_coin(
+                    from_user=event["from_user"],
+                    to_user=event["to_user"],
+                    coin_id=event["coin_id"]
+                )
+            elif et == "CREATE_PROPOSAL":
+                self._do_create_proposal(
+                    proposal_id=event["proposal_id"],
+                    creator=event["creator"],
+                    description=event["description"],
+                    target=event["target"],
+                    payload=event["payload"],
+                    created_at=timestamp
+                )
+            elif et == "VOTE_PROPOSAL":
+                self._do_vote_proposal(
+                    proposal_id=event["proposal_id"],
+                    voter=event["voter"],
+                    vote=event["vote"]
+                )
+            elif et == "EXECUTE_PROPOSAL":
+                self._do_execute_proposal(
+                    proposal_id=event["proposal_id"]
+                )
+            elif et == "CLOSE_PROPOSAL":
+                self._do_close_proposal(
+                    proposal_id=event["proposal_id"],
+                    status=event["status"]
+                )
+            elif et == "UPDATE_CONFIG":
+                self._do_update_config(
+                    key=event["key"],
+                    value=Decimal(event["value"])
+                )
+            elif et == "DAILY_DECAY":
+                self._do_daily_decay(
+                    treasury_allocation=Decimal(event["treasury_allocation"]),
+                    timestamp=timestamp
+                )
+            elif et == "ADJUST_KARMA":
+                self._do_adjust_karma(
+                    user_name=event["user"],
+                    change=Decimal(event["change"])
+                )
+            else:
+                logging.warning(f"Unknown event type '{et}' ignored.")
+        except Exception as e:
+            logging.error(f"Error applying event {et} during replay: {e}. Event: {json.dumps(event)}")
+
+    def save_snapshot(self):
+        try:
+            data = {
+                "users": {k: v.to_dict() for k, v in self.users.items()},
+                "coins": {k: v.to_dict() for k, v in self.coins.items()},
+                "proposals": {k: v.to_dict() for k, v in self.proposals.items()},
+                "treasury": str(self.treasury),
+                "treasury_active_fund": str(self.treasury_active_fund),
+                "emoji_market": self.emoji_market.to_dict(),
+                "marketplace_listings": self.marketplace_listings,
+                "_last_decay_day": self._last_decay_day,
+                "_last_proposal_check": self._last_proposal_check.isoformat() if self._last_proposal_check else None,
+            }
+            with open(self.snapshot_file, "w", encoding="utf-8") as f:
+                json.dump(data, f)
+            logging.info(f"Snapshot saved to {self.snapshot_file}")
+        except Exception as e:
+            logging.error(f"Failed to save snapshot: {e}")
+
+    def load_state(self):
+        try:
+            with open(self.snapshot_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            self.users = {k: User.from_dict(v) for k, v in data.get("users", {}).items()}
+            self.coins = {k: Coin.from_dict(v) for k, v in data.get("coins", {}).items()}
+            self.proposals = {k: Proposal.from_dict(v) for k, v in data.get("proposals", {}).items()}
+            self.treasury = Decimal(data.get("treasury", '0'))
+            self.treasury_active_fund = Decimal(data.get("treasury_active_fund", '0'))
+            self.emoji_market = EmojiMarket.from_dict(data.get("emoji_market", {}))
+            self.marketplace_listings = data.get("marketplace_listings", {})
+            self._last_decay_day = data.get("_last_decay_day")
+            last_proposal_check_str = data.get("_last_proposal_check")
+            self._last_proposal_check = datetime.datetime.fromisoformat(last_proposal_check_str) if last_proposal_check_str else None
+            logging.info(f"Snapshot loaded from {self.snapshot_file}")
+        except FileNotFoundError:
+            logging.info("No snapshot file found, starting fresh")
+        except Exception as e:
+            logging.error(f"Failed to load snapshot: {e}")
+
+        # Replay events after snapshot timestamp for catch-up
+        replay_after = self.logchain.last_timestamp
+        if replay_after:
+            with self.logchain.lock:
+                for line in self.logchain.entries:
+                    event_json, _ = line.split("||")
+                    event_data = json.loads(event_json)
+                    event_ts = event_data.get("timestamp")
+                    if event_ts and event_ts > replay_after:
+                        self._apply_event(event_data)
