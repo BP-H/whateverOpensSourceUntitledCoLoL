@@ -1,3 +1,677 @@
+# -------------------------------------------------------------------------------
+# The Emoji Engine — MetaKarma Hub Ultimate Mega-Agent v5.1
+#
+# Copyright (c) 2023-2026 mimi, taha & supernova
+#
+# MIT License — remix, fork, evolve, connect your universe.
+#
+# Powered by humans & machines hand in hand — remixing creativity, karma & cosmos.
+# -------------------------------------------------------------------------------
+
+"""
+Welcome to MetaKarma Hub! 🌌✨🎮
+
+The ultimate legoblock core for building boundless multiverses — each shaped by you.
+
+🧩 Modular, scalable, immutable, and open.
+
+Every citizen starts with a root coin — the spark of creation 🔥,
+whether human or decentralized AI agent, each with independent karma potential.
+
+Mint fractional coins as legos to remix, improve, and innovate endlessly.
+Trade fractional ownership on a marketplace to monetize your remix republic.
+
+Reactions flow karma through cosmic veins,
+shared fairly between creators, reactors, and treasury — communal light 💎.
+
+Governance is truly multi-species: humans, AI, others,
+each voice equal, building together a thriving remix republic 🤗👽.
+
+The Vaccine adapts, blocking evolving threats 🛡️.
+
+Hooks plug into Discord, Unreal, AI agents — you name it. Play on.
+
+No politics, no cults. Pure remix magic.
+
+Join us. Remix reality. Build universes.
+
+─────────────────────────────────────────────
+"""
+
+import sys, json, uuid, datetime, hashlib, threading, base64, re, logging, time, asyncio, hmac, os, atexit, code
+from collections import defaultdict, deque
+from decimal import Decimal, getcontext
+from typing import Optional, Dict, List, Any, Callable
+
+# === CONFIGURATION & CONSTANTS ===
+
+getcontext().prec = 28
+logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(levelname)s: %(message)s')
+
+CONFIG_DATA = {
+    "version": "EmojiEngine UltimateMegaAgent v5.1",
+    "mint_base": 100_000_000_000,       # micro-karma (100,000 karma)
+    "mint_floor": 1_000_000_000,        # micro-karma (1,000 karma)
+    "genesis_fade_years": 10,
+    "genesis_multiplier": 2,
+    "daily_decay": 0.7,
+    "viral_decay": 0.95,
+    "treasury_share": 1/3,
+    "market_fee": 0.01,
+    "max_fraction_start": 0.10,
+    "max_fraction_max": 0.30,
+    "max_log": 100_000,
+    "max_mints_per_day": 5,
+    "max_reacts_per_minute": 30,
+    "min_improvement_len": 15,
+    "heartbeat_interval_sec": 60,
+    "secret_key": b"meta_karma_secret_key",
+    "vax_patterns": {
+        "critical": [r"\bhack\b", r"\bmalware\b", r"\bransomware\b", r"\bbackdoor\b", r"\bexploit\b"],
+        "high": [r"\bphish\b", r"\bddos\b", r"\bspyware\b", r"\brootkit\b", r"\bkeylogger\b", r"\bbotnet\b"],
+        "medium": [r"\bpropaganda\b", r"\bsurveillance\b", r"\bmanipulate\b"],
+        "low": [r"\bspam\b", r"\bscam\b", r"\bviagra\b"],
+    },
+    "emoji_base": {
+        "🤗": 5, "🎨": 3, "🔥": 2, "👍": 1,
+        "👀": 0.5, "🥲": 0.2, "💯": 2, "💬": 3,
+        "🔀": 4, "🆕": 3, "🔗": 2, "❤️": 4,
+        "🚀": 3.5, "💎": 6, "🌟": 3, "⚡": 2.5,
+        "😅": 1.5, "🤷‍♂️": 1.5, "🥰": 6, "😍": 6.5, "🫶": 7, "🌸": 5,
+    },
+    "emoji_aliases": {
+        ":hug:": "🤗",
+        ":fire:": "🔥",
+        ":love:": "❤️",
+        ":sparkle:": "🌟",
+        ":smile:": "😅",
+        ":shrug:": "🤷‍♂️",
+        ":heart_eyes:": "😍",
+    }
+}
+
+class Config:
+    VERSION = CONFIG_DATA["version"]
+    MINT_BASE = CONFIG_DATA["mint_base"]
+    MINT_FLOOR = CONFIG_DATA["mint_floor"]
+    GENESIS_FADE_YEARS = CONFIG_DATA["genesis_fade_years"]
+    GENESIS_MULTIPLIER = Decimal(str(CONFIG_DATA["genesis_multiplier"]))
+    DAILY_DECAY = Decimal(str(CONFIG_DATA["daily_decay"]))
+    VIRAL_DECAY = Decimal(str(CONFIG_DATA["viral_decay"]))
+    TREASURY_SHARE = Decimal(str(CONFIG_DATA["treasury_share"]))
+    MARKET_FEE = Decimal(str(CONFIG_DATA["market_fee"]))
+    MAX_FRACTION_START = Decimal(str(CONFIG_DATA["max_fraction_start"]))
+    MAX_FRACTION_MAX = Decimal(str(CONFIG_DATA["max_fraction_max"]))
+    MAX_LOG = CONFIG_DATA["max_log"]
+    MAX_MINTS_PER_DAY = CONFIG_DATA["max_mints_per_day"]
+    MAX_REACTS_PER_MINUTE = CONFIG_DATA["max_reacts_per_minute"]
+    MIN_IMPROVEMENT_LEN = CONFIG_DATA["min_improvement_len"]
+    HEARTBEAT_INTERVAL_SEC = CONFIG_DATA["heartbeat_interval_sec"]
+    SECRET_KEY = CONFIG_DATA["secret_key"]
+    VAX_PATTERNS = CONFIG_DATA["vax_patterns"]
+    EMOJI_BASE = {k: Decimal(str(v)) for k, v in CONFIG_DATA["emoji_base"].items()}
+    EMOJI_ALIASES = CONFIG_DATA["emoji_aliases"]
+
+# === UTILITIES ===
+
+def now_utc() -> datetime.datetime:
+    return datetime.datetime.now(datetime.timezone.utc)
+
+def ts() -> str:
+    return now_utc().isoformat()
+
+def sha(data: str) -> str:
+    return base64.b64encode(hashlib.sha256(data.encode('utf-8')).digest()).decode()
+
+def today() -> str:
+    return now_utc().date().isoformat()
+
+def safe_divide(a: Decimal, b: Decimal, default: Decimal = Decimal('0')) -> Decimal:
+    return a / b if b != 0 else default
+
+def is_valid_username(name: str) -> bool:
+    return bool(re.fullmatch(r'[A-Za-z0-9_]{3,30}', name))
+
+def normalize_emoji(e: str) -> str:
+    if e in Config.EMOJI_BASE:
+        return e
+    return Config.EMOJI_ALIASES.get(e, e)
+
+def is_valid_emoji(emoji: str) -> bool:
+    return normalize_emoji(emoji) in Config.EMOJI_BASE
+
+# === EXCEPTIONS ===
+
+class UserExistsError(Exception): pass
+class ConsentError(Exception): pass
+class KarmaError(Exception): pass
+class BlockedContentError(Exception): pass
+class CoinDepletedError(Exception): pass
+class RateLimitError(Exception): pass
+class ImprovementRequiredError(Exception): pass
+class EmojiRequiredError(Exception): pass
+class InsufficientFundsError(Exception): pass
+class TradeError(Exception): pass
+
+# === CORE COMPONENTS ===
+
+class Vaccine:
+    def __init__(self):
+        self.lock = threading.RLock()
+        self.block_counts = defaultdict(int)
+        self.compiled_patterns = {}
+        for lvl, pats in Config.VAX_PATTERNS.items():
+            compiled = []
+            for p in pats:
+                try:
+                    compiled.append(re.compile(p))
+                except re.error as e:
+                    logging.error(f"❌ Regex error in vaccine pattern '{p}': {e}")
+            self.compiled_patterns[lvl] = compiled
+
+    def scan(self, text: str) -> bool:
+        if not isinstance(text, str):
+            return True
+        t = text.lower()
+        with self.lock:
+            for lvl, compiled_pats in self.compiled_patterns.items():
+                for pat in compiled_pats:
+                    if pat.search(t):
+                        self.block_counts[lvl] += 1
+                        with open("vaccine.log", "a", encoding="utf-8") as f:
+                            f.write(json.dumps({"ts": ts(), "level": lvl, "pattern": pat.pattern, "snippet": text[:80]}) + "\n")
+                        logging.warning(f"🚫 Vaccine blocked {lvl} pattern '{pat.pattern}' in content: '{text[:50]}...'")
+                        return False
+        return True
+
+class LogChain:
+    def __init__(self, filename="logchain.log", maxlen=Config.MAX_LOG):
+        self.filename = filename
+        self.lock = threading.RLock()
+        self.entries = deque(maxlen=maxlen)
+        self._load()
+
+    def _load(self):
+        try:
+            with open(self.filename, "r", encoding="utf-8") as f:
+                for line in f:
+                    self.entries.append(line.strip())
+            logging.info(f"📜 Loaded {len(self.entries)} audit entries")
+        except FileNotFoundError:
+            logging.info("📜 No audit log found, starting fresh")
+
+    def _sign(self, message: str) -> str:
+        # HMAC-SHA256 signature for audit entries
+        return base64.b64encode(hmac.new(Config.SECRET_KEY, message.encode(), hashlib.sha256).digest()).decode()
+
+    def add(self, event: Dict[str, Any]) -> None:
+        with self.lock:
+            json_event = json.dumps(event, sort_keys=True)
+            prev_hash = self.entries[-1].split("||")[-1] if self.entries else ""
+            unsigned = prev_hash + json_event
+            new_hash = sha(unsigned)
+            signature = self._sign(unsigned)
+            entry_line = json_event + "||" + new_hash + "||" + signature
+            self.entries.append(entry_line)
+            try:
+                with open(self.filename, "a", encoding="utf-8") as f:
+                    f.write(entry_line + "\n")
+            except IOError as e:
+                logging.error(f"❌ Failed to write audit log: {e}")
+
+    def verify(self) -> bool:
+        prev_hash = ""
+        for line in self.entries:
+            try:
+                parts = line.split("||")
+                if len(parts) != 3:
+                    logging.error("❌ Malformed audit log line")
+                    return False
+                event_json, h, sig = parts
+            except ValueError:
+                logging.error("❌ Malformed audit log line")
+                return False
+            if sha(prev_hash + event_json) != h:
+                logging.error("❌ Audit log hash mismatch")
+                return False
+            if self._sign(prev_hash + event_json) != sig:
+                logging.error("❌ Audit log signature mismatch")
+                return False
+            prev_hash = h
+        return True
+
+class User:
+    def __init__(self, name: str, genesis: bool = False, species: str = "human"):
+        self.name = name
+        self.is_genesis = genesis
+        self.species = species  # "human", "AI", "bot", "alien", etc.
+        self.consent = True
+        self.karma = Config.MINT_BASE if genesis else 0
+        self.join_time = now_utc()
+        self.mint_count = 0
+        self.next_mint_threshold = 0 if genesis else Config.MINT_BASE
+        self.root_coin_id: Optional[str] = None
+        self.coins_owned: List[str] = []
+        self.daily_actions: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
+        self._last_action_day: Optional[str] = today()
+        self._reaction_timestamps: deque = deque()
+        self.lock = threading.RLock()
+
+    def fading_multiplier(self) -> Decimal:
+        if not self.is_genesis:
+            return Decimal('1')
+        elapsed = (now_utc() - self.join_time).total_seconds()
+        fade_seconds = float(Config.GENESIS_FADE_YEARS * 365.25 * 24 * 3600)
+        if elapsed >= fade_seconds:
+            return Decimal('1')
+        frac = Decimal(elapsed) / Decimal(fade_seconds)
+        return Config.GENESIS_MULTIPLIER - frac * (Config.GENESIS_MULTIPLIER - Decimal('1'))
+
+    def reset_daily_if_needed(self) -> None:
+        today_str = today()
+        with self.lock:
+            if self._last_action_day != today_str:
+                self.daily_actions.clear()
+                self._last_action_day = today_str
+                self._reaction_timestamps.clear()
+
+    def check_reaction_rate_limit(self) -> bool:
+        now_ts = now_utc().timestamp()
+        with self.lock:
+            while self._reaction_timestamps and now_ts - self._reaction_timestamps[0] > 60:
+                self._reaction_timestamps.popleft()
+            if len(self._reaction_timestamps) >= Config.MAX_REACTS_PER_MINUTE:
+                return False
+            return True
+
+    def record_reaction_timestamp(self) -> None:
+        now_ts = now_utc().timestamp()
+        with self.lock:
+            self._reaction_timestamps.append(now_ts)
+
+    def check_mint_rate_limit(self) -> bool:
+        self.reset_daily_if_needed()
+        with self.lock:
+            return self.daily_actions[today()].get("mint", 0) < Config.MAX_MINTS_PER_DAY
+
+    @staticmethod
+    def from_dict(data: Dict[str, Any]) -> "User":
+        u = User(data["name"], data["is_genesis"], data["species"])
+        u.consent = data["consent"]
+        u.karma = int(data["karma"])
+        u.join_time = datetime.datetime.fromisoformat(data["join_time"])
+        u.mint_count = data["mint_count"]
+        u.next_mint_threshold = int(data["next_mint_threshold"])
+        u.root_coin_id = data.get("root_coin_id")
+        u.coins_owned = data.get("coins_owned", [])
+        u.daily_actions = defaultdict(lambda: defaultdict(int), {k: defaultdict(int, v) for k, v in data.get("daily_actions", {}).items()})
+        u._last_action_day = data.get("_last_action_day", today())
+        u._reaction_timestamps = deque(data.get("_reaction_timestamps", []))
+        return u
+
+class Coin:
+    def __init__(self, coin_id: str, creator: str, owner: str, value: int,
+                 is_root: bool = False, fractional_of: Optional[str] = None,
+                 fractional_pct: float = 0.0, references: Optional[List[Dict]] = None,
+                 improvement: Optional[str] = None):
+        self.coin_id = coin_id
+        self.creator = creator
+        self.owner = owner
+        self.value = value  # in micro-karma integer units
+        self.is_root = is_root
+        self.fractional_of = fractional_of
+        self.fractional_pct = fractional_pct
+        self.references = references or []
+        self.improvement = improvement or ""
+        self.ancestors: List[str] = []
+        self.reactions: List[Dict] = []
+        self.created_at = ts()
+
+    @staticmethod
+    def from_dict(data: Dict[str, Any]) -> "Coin":
+        c = Coin(
+            data["coin_id"], data["creator"], data["owner"],
+            int(data["value"]), data["is_root"], data["fractional_of"],
+            float(data["fractional_pct"]), data.get("references"),
+            data.get("improvement")
+        )
+        c.ancestors = data.get("ancestors", [])
+        c.reactions = data.get("reactions", [])
+        c.created_at = data.get("created_at", ts())
+        return c
+
+class EmojiMarket:
+    def __init__(self):
+        self.lock = threading.RLock()
+        self.market: Dict[str, Dict[str, Any]] = {
+            e: {"uses": 1, "karma": int(w * 1_000_000), "weight": int(w * 1_000_000)}
+            for e, w in Config.EMOJI_BASE.items()
+        }
+
+    def update_weight(self, emoji: str, karma_delta: int) -> None:
+        with self.lock:
+            em = self.market.setdefault(emoji, {"uses": 0, "karma": 0, "weight": 1_000_000})
+            em["uses"] += 1
+            em["karma"] += karma_delta
+            alpha = 0.1
+            em["weight"] = int(alpha * (em["karma"] / em["uses"]) + (1 - alpha) * em["weight"])
+
+    def get_weight(self, emoji: str) -> int:
+        with self.lock:
+            return self.market.get(emoji, {"weight": 1_000_000})["weight"]
+
+class HookManager:
+    def __init__(self):
+        self._hooks: Dict[str, List[Callable]] = defaultdict(list)
+        self.lock = threading.RLock()
+
+    def register_hook(self, event_name: str, callback: Callable):
+        with self.lock:
+            self._hooks[event_name].append(callback)
+            logging.info(f"Hook registered for event '{event_name}'")
+
+    async def fire_hooks_async(self, event_name: str, *args, **kwargs):
+        with self.lock:
+            callbacks = list(self._hooks.get(event_name, []))
+        await asyncio.gather(*(cb(*args, **kwargs) for cb in callbacks))
+
+    def fire_hooks(self, event_name: str, *args, **kwargs):
+        with self.lock:
+            callbacks = list(self._hooks.get(event_name, []))
+        for cb in callbacks:
+            try:
+                cb(*args, **kwargs)
+            except Exception as e:
+                logging.error(f"Error in hook '{event_name}': {e}")
+
+class RemixAgent:
+    def __init__(self, snapshot_file: str = "snapshot.json", log_dir: str = "./logs"):
+        self.vaccine = Vaccine()
+        self.logchain = LogChain()
+        self.users: Dict[str, User] = {}
+        self.coins: Dict[str, Coin] = {}
+        self.treasury = 0  # micro-karma int
+        self.treasury_active_fund = 0
+        self.emoji_market = EmojiMarket()
+        self.lock = threading.RLock()
+        self.hooks = HookManager()
+        self.snapshot_file = snapshot_file
+        self.log_dir = log_dir
+        self._last_heartbeat = now_utc()
+        self.shared_ownership_enabled = False
+
+        os.makedirs(self.log_dir, exist_ok=True)
+        atexit.register(self.save_snapshot)
+        atexit.register(self.rotate_logs)
+
+        # Add three genesis users (AI Agents)
+        for agent_name, species in [("GPT", "AI"), ("Gemini", "AI"), ("Claude", "AI")]:
+            if agent_name not in self.users:
+                self.add_user(agent_name, genesis=True, species=species)
+
+    def add_user(self, name: str, genesis: bool = False, species: str = "human") -> User:
+        if not is_valid_username(name):
+            raise ValueError("Invalid username")
+        with self.lock:
+            if name in self.users:
+                raise UserExistsError(f"User '{name}' exists")
+            user = User(name, genesis, species)
+            salt = uuid.uuid4().hex
+            coin_id = sha(f"{name}_{ts()}_{salt}")
+            root_coin = Coin(coin_id, name, name, Config.MINT_BASE if genesis else 0, True)
+            self.coins[coin_id] = root_coin
+            user.root_coin_id = coin_id
+            user.coins_owned.append(coin_id)
+            self.users[name] = user
+            self.logchain.add({"event": "ADD_USER", "user": name, "genesis": genesis, "species": species, "ts": ts()})
+            logging.info(f"Added user {name} (Genesis={genesis}, Species={species}) 🥰")
+        self.hooks.fire_hooks("user_added", user=user)
+        return user
+
+    def revoke_consent(self, name: str) -> None:
+        with self.lock:
+            user = self.users.get(name)
+            if not user:
+                raise KeyError(f"No such user '{name}'")
+            user.consent = False
+            self.logchain.add({"event": "REVOKE_CONSENT", "user": name, "ts": ts()})
+            logging.info(f"Consent revoked for user {name} 🤗")
+        self.hooks.fire_hooks("consent_revoked", user=user)
+
+    def mint_fractional_post(self, name: str, tag: str = "single", references: Optional[List[Dict]] = None,
+                            improvement: Optional[str] = None, emojis: Optional[List[str]] = None) -> str:
+        with self.lock:
+            user = self.users.get(name)
+            if not user or not user.consent:
+                raise ConsentError(f"User {name} no consent or not found")
+            if not user.check_mint_rate_limit():
+                raise RateLimitError(f"User {name} exceeded mint limit")
+            if not (user.is_genesis or user.karma >= user.next_mint_threshold):
+                raise KarmaError(f"User {name} karma {user.karma} below threshold")
+            if not improvement or len(improvement.strip()) < Config.MIN_IMPROVEMENT_LEN:
+                raise ImprovementRequiredError(f"Improvement description required (min {Config.MIN_IMPROVEMENT_LEN} chars).")
+            if not emojis or not any(is_valid_emoji(normalize_emoji(e)) for e in emojis):
+                raise EmojiRequiredError("At least one valid emoji is required when minting a post.")
+            if references:
+                for ref in references:
+                    for field in ("title", "authors", "url"):
+                        if field in ref and not self.vaccine.scan(str(ref.get(field, ''))):
+                            raise BlockedContentError(f"Blocked content in reference '{field}'")
+            root_coin = self.coins.get(user.root_coin_id)
+            if root_coin is None:
+                raise ValueError("User root coin missing")
+            base_fraction = Config.MAX_FRACTION_START
+            depletion_ratio = safe_divide(Decimal('1') - Decimal(root_coin.value) / Decimal(Config.MINT_BASE), Decimal('1'))
+            max_fraction = base_fraction + (Config.MAX_FRACTION_MAX - base_fraction) * depletion_ratio
+            tentative_value = Decimal(root_coin.value) * max_fraction
+            mint_value = min(tentative_value, Decimal(root_coin.value) * Config.MAX_FRACTION_MAX)
+            mint_value_int = int(mint_value.to_integral_value(rounding='ROUND_FLOOR'))
+            if mint_value_int <= 0:
+                raise CoinDepletedError("Root coin depleted")
+            active_allocation = int(mint_value_int * Config.TREASURY_SHARE)
+            self.treasury_active_fund += active_allocation
+            self.treasury += mint_value_int - active_allocation
+            root_coin.value -= mint_value_int
+            salt = uuid.uuid4().hex
+            new_coin_id = sha(f"{name}_{ts()}_{salt}")
+            new_coin = Coin(new_coin_id, root_coin.creator, name, mint_value_int, False, root_coin.coin_id,
+                            float(mint_value_int) / (root_coin.value + mint_value_int), references, improvement.strip())
+            new_coin.ancestors.append(root_coin.coin_id)
+            new_coin.improvement = improvement.strip()
+            self.coins[new_coin_id] = new_coin
+            user.coins_owned.append(new_coin_id)
+            user.mint_count += 1
+            user.next_mint_threshold = max(user.next_mint_threshold // 2, Config.MINT_FLOOR)
+            user.daily_actions.setdefault(today(), defaultdict(int))["mint"] += 1
+            self.logchain.add({
+                "event": "MINT", "user": name, "coin": new_coin_id,
+                "val": mint_value_int, "refs": references or [],
+                "improvement": improvement.strip(),
+                "emojis": [normalize_emoji(e) for e in emojis],
+                "ts": ts()
+            })
+            logging.info(f"User {name} minted fractional coin {new_coin_id} 🎉 with emojis {[normalize_emoji(e) for e in emojis]} (treasury active fund +{active_allocation}) 🥰🔥")
+        self.hooks.fire_hooks("coin_minted", user=user, coin=new_coin)
+        return new_coin_id
+
+    def react_to_coin(self, reactor: str, coin_id: str, emoji: str, message: Optional[str] = None) -> int:
+        emoji = normalize_emoji(emoji)
+        if not is_valid_emoji(emoji):
+            raise ValueError(f"Invalid emoji '{emoji}'")
+        with self.lock:
+            user = self.users.get(reactor)
+            coin = self.coins.get(coin_id)
+            if not user or not user.consent:
+                raise ConsentError("Reactor no consent or not found")
+            if not coin:
+                raise ValueError(f"Coin {coin_id} not found")
+            if not user.check_reaction_rate_limit():
+                raise RateLimitError(f"User {reactor} exceeded reaction limit")
+            # Emoji cooldown: if too many reacts with same emoji in short time, block
+            emoji_count = user.daily_actions.setdefault(today(), defaultdict(int)).get(f"react_{emoji}", 0)
+            if emoji_count >= 10:
+                raise RateLimitError(f"User {reactor} exceeded emoji '{emoji}' reaction limit")
+            content = f"{emoji} {message}" if message else emoji
+            if not self.vaccine.scan(content):
+                raise BlockedContentError("Content blocked by vaccine")
+            user.reset_daily_if_needed()
+            user.daily_actions[today()]["react"] += 1
+            user.daily_actions[today()][f"react_{emoji}"] += 1
+            user.record_reaction_timestamp()
+            decay_factor = Config.DAILY_DECAY ** (user.daily_actions[today()][f"react_{emoji}"] - 1)
+            emoji_weight = self.emoji_market.get_weight(emoji)
+            viral_decay = Config.VIRAL_DECAY ** len(coin.reactions)
+            event_value = coin.value * emoji_weight * decay_factor * viral_decay // 1_000_000
+            share = int(event_value * float(Config.TREASURY_SHARE))
+            creator = self.users.get(coin.creator)
+            origin_share = int(share * float(creator.fading_multiplier())) if creator else share
+            actor_share = share
+            treasury_share = event_value - origin_share - actor_share
+            if creator:
+                creator.karma += origin_share
+            user.karma += actor_share
+            self.treasury += treasury_share
+            self.emoji_market.update_weight(emoji, actor_share)
+            coin.reactions.append({"reactor": reactor, "emoji": emoji, "message": message, "timestamp": ts()})
+            self.logchain.add({
+                "event": "REACT", "reactor": reactor, "coin": coin_id,
+                "emoji": emoji, "karma": actor_share, "ts": ts()
+            })
+            logging.info(f"User {reactor} reacted to {coin_id} with {emoji} (+{actor_share} µk) 🥰🔥")
+        self.hooks.fire_hooks("coin_reacted", user=user, coin=coin, emoji=emoji, message=message, karma_value=actor_share)
+        return actor_share
+
+    def spend_treasury_fund(self, amount: int, purpose: str) -> bool:
+        if amount > self.treasury_active_fund:
+            logging.warning(f"Treasury fund spend request of {amount} denied — insufficient active funds.")
+            return False
+        self.treasury_active_fund -= amount
+        logging.info(f"Treasury active fund spent {amount} for {purpose}. Remaining fund: {self.treasury_active_fund}")
+        # TODO: Implement actual grant or buyback logic here
+        return True
+
+    def rotate_logs(self):
+        # Rotate log files daily and keep last 7
+        try:
+            now_date = now_utc().date().isoformat()
+            for filename in ["logchain.log", "vaccine.log"]:
+                path = filename
+                if os.path.exists(path):
+                    new_name = f"{filename}.{now_date}"
+                    os.rename(path, new_name)
+            # Optionally delete old rotated logs here
+        except Exception as e:
+            logging.error(f"Failed to rotate logs: {e}")
+
+    def save_snapshot(self):
+        with self.lock:
+            try:
+                # Rotate logs before saving snapshot
+                self.rotate_logs()
+                state = {
+                    "version": Config.VERSION,
+                    "users": {name: self._user_to_dict(u) for name, u in self.users.items()},
+                    "coins": {cid: self._coin_to_dict(c) for cid, c in self.coins.items()},
+                    "treasury": str(self.treasury),
+                    "treasury_active_fund": str(self.treasury_active_fund),
+                    "emoji_market": {e: {k: str(v) for k, v in m.items()} for e, m in self.emoji_market.market.items()},
+                }
+                with open(self.snapshot_file, 'w', encoding='utf-8') as f:
+                    json.dump(state, f, indent=2)
+                logging.info(f"💾 Snapshot saved to {self.snapshot_file}")
+            except Exception as e:
+                logging.error(f"❌ Failed to save snapshot: {e}")
+
+    def load_snapshot(self):
+        try:
+            with open(self.snapshot_file, 'r', encoding='utf-8') as f:
+                state = json.load(f)
+            with self.lock:
+                self.users = {name: User.from_dict(ud) for name, ud in state.get('users', {}).items()}
+                self.coins = {cid: Coin.from_dict(cd) for cid, cd in state.get('coins', {}).items()}
+                self.treasury = int(state.get('treasury', '0'))
+                self.treasury_active_fund = int(state.get('treasury_active_fund', '0'))
+                self.emoji_market.market = {k: {ik: int(iv) for ik, iv in v.items()} for k, v in state.get('emoji_market', {}).items()}
+                logging.info(f"✅ Snapshot loaded from {self.snapshot_file}")
+        except FileNotFoundError:
+            logging.warning(f"⚠️ No snapshot file found at {self.snapshot_file}. Starting fresh.")
+        except Exception as e:
+            logging.error(f"❌ Failed to load snapshot: {e}")
+
+    def _user_to_dict(self, user: User) -> Dict[str, Any]:
+        return {
+            "name": user.name,
+            "is_genesis": user.is_genesis,
+            "species": user.species,
+            "consent": user.consent,
+            "karma": user.karma,
+            "join_time": user.join_time.isoformat(),
+            "mint_count": user.mint_count,
+            "next_mint_threshold": user.next_mint_threshold,
+            "root_coin_id": user.root_coin_id,
+            "coins_owned": user.coins_owned,
+            "daily_actions": {k: dict(v) for k, v in user.daily_actions.items()},
+            "_last_action_day": user._last_action_day,
+            "_reaction_timestamps": list(user._reaction_timestamps),
+        }
+
+    def _coin_to_dict(self, coin: Coin) -> Dict[str, Any]:
+        return {
+            "coin_id": coin.coin_id,
+            "creator": coin.creator,
+            "owner": coin.owner,
+            "value": coin.value,
+            "is_root": coin.is_root,
+            "fractional_of": coin.fractional_of,
+            "fractional_pct": coin.fractional_pct,
+            "references": coin.references,
+            "improvement": coin.improvement,
+            "ancestors": coin.ancestors,
+            "reactions": coin.reactions,
+            "created_at": coin.created_at,
+        }
+
+# === ADMIN SHELL ===
+
+def admin_shell(agent: RemixAgent):
+    banner = """
+Welcome to MetaKarma Hub Admin Shell!
+Type 'help' for commands. Type 'exit' or Ctrl-D to quit.
+"""
+    env = {'agent': agent}
+    code.interact(banner=banner, local=env)
+
+# === ENTRY POINT ===
+
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="Run MetaKarma Hub Ultimate Mega-Agent")
+    parser.add_argument('--shell', action='store_true', help='Run admin interactive shell')
+    parser.add_argument('--port', type=int, default=8080, help='Port (reserved for future network API)')
+    args = parser.parse_args()
+
+    agent = RemixAgent()
+    agent.load_snapshot()
+
+    def log_user(user): logging.info(f"HOOK: New user {user.name} ({user.species}) 🥰")
+    def log_mint(user, coin): logging.info(f"HOOK: Minted coin {coin.coin_id} by {user.name} 💎")
+    def log_react(user, coin, emoji, message, karma_value): logging.info(f"HOOK: {user.name} reacted {emoji} on {coin.coin_id} (+{karma_value} µk) 🥰")
+
+    agent.hooks.register_hook("user_added", log_user)
+    agent.hooks.register_hook("coin_minted", log_mint)
+    agent.hooks.register_hook("coin_reacted", log_react)
+
+    if args.shell:
+        admin_shell(agent)
+    else:
+        logging.info(f"🚀 MetaKarma Hub v5.1 live on port {args.port}. Press Ctrl+C to quit.")
+        try:
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            logging.info("🛑 Shutdown requested. Saving state...")
+            agent.save_snapshot()
+            logging.info("🌸 State saved. Goodbye!")
 
 
 # -------------------------------------------------------------------------------
