@@ -29,7 +29,7 @@ each voice equal by default,
 with voting weights dynamically normalized:
 - Two species: 50/50 split
 - Three or more: evenly split (~33% each)
-Super-majority approval threshold is set to 70% to encourage meaningful consensus.
+Super-majority approval threshold is set to 70% to encourage meaningful consensus. Ensure more than 10% says yes from each class.
 
 The Vaccine adapts, blocking evolving threats 🛡️.
 
