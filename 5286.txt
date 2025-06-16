@@ -1382,7 +1382,7 @@ class RemixAgent:
                 return
             for user in self.users.values():
                 user.apply_daily_karma_decay()
-                user.karma += Decimal('50')  # Daily active reward
+                user.karma += Decimal('100')  # Daily active reward
             self._last_decay_day = today()
             event = {
                 "event": EventType.DAILY_DECAY,
