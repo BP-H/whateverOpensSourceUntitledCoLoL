@@ -1,0 +1,4548 @@
+
+# -------------------------------------------------------------------------------
+# The Emoji Engine — MetaKarma Hub Ultimate Mega-Agent v5.17+
+#
+# Copyright (c) 2023-2026 mimi, taha & supernova
+#
+# Powered by humans & machines hand in hand — remixing creativity, karma & cosmos.
+# Special shoutout to Gemini, Google Gemini, OpenAI GPT & Anthropic Cloud
+# — the stellar trio that helped spark this cosmic project 🚀✨
+#
+# MIT License — remix, fork, evolve, connect your universe.
+# -------------------------------------------------------------------------------
+
+"""
+Welcome to MetaKarma Hub! 🌌✨🎮
+
+The ultimate legoblock core for building boundless multiverses — each a remix republic shaped by you.
+
+🧩 Modular, scalable, immutable, and open.
+
+Every citizen starts with exactly one root coin — the spark of creation 🔥,
+fully divisible like Bitcoin down to ultra-fine fractions.
+
+Mint fractional coins freely from your root coin's value,
+with the minted value split into:
+- ~1/3 back to the user (creator and influencers),
+- ~1/3 shared among reactors, reposters, etc.,
+- ~1/3 to the treasury communal light 💎.
+
+Karma is separate — unlocking minting & voting powers, required for non-genesis users.
+
+Governance balances multi-species voices fairly,
+with dynamic normalized voting weights and 70% supermajority threshold.
+
+Value flows through emojis, amplifying social influence economically and culturally,
+without politics or divisiveness.
+
+Join us. Remix reality. Build universes.
+
+─────────────────────────────────────────────
+"""
+
+import sys
+import json
+import uuid
+import datetime
+import hashlib
+import threading
+import base64
+import re
+import logging
+from collections import defaultdict, deque
+from decimal import Decimal, getcontext, InvalidOperation
+from typing import Optional, Dict, List, Any, Callable
+
+getcontext().prec = 28
+logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(levelname)s: %(message)s')
+
+
+def acquire_agent_lock(func):
+    def wrapper(self, *args, **kwargs):
+        with self.lock:
+            return func(self, *args, **kwargs)
+    return wrapper
+
+
+class Config:
+    _lock = threading.RLock()
+    VERSION = "EmojiEngine UltimateMegaAgent v5.17+"
+
+    GENESIS_COIN_INITIAL_VALUE = Decimal('1000000')  # 1 million units
+    STANDARD_COIN_INITIAL_VALUE = Decimal('1000')
+    DAILY_DECAY = Decimal('0.99')  # 1% decay per day on karma & treasury
+    TREASURY_SHARE = Decimal('0.3333333333')  # One-third split
+    MARKET_FEE = Decimal('0.01')  # 1% marketplace fee on trades
+    MAX_MINTS_PER_DAY = 5
+    MAX_REACTS_PER_MINUTE = 30
+    MIN_IMPROVEMENT_LEN = 15
+    GOV_SUPERMAJORITY_THRESHOLD = Decimal('0.70')
+    PROPOSAL_VOTE_DURATION_HOURS = 72
+    KARMA_MINT_THRESHOLD = Decimal('5000')  # Karma required to mint fractions
+    FRACTIONAL_COIN_MIN_VALUE = Decimal('10')  # Minimum fractional coin mint value
+    MAX_FRACTION_START = Decimal('0.05')  # Max 5% root coin fraction per mint by default
+
+    # Regex patterns for Vaccine content blocking (anti-spam, anti-hack)
+    VAX_PATTERNS = {
+        "critical": [r"\bhack\b", r"\bmalware\b", r"\bransomware\b", r"\bbackdoor\b", r"\bexploit\b"],
+        "high": [r"\bphish\b", r"\bddos\b", r"\bspyware\b", r"\brootkit\b", r"\bkeylogger\b", r"\bbotnet\b"],
+        "medium": [r"\bpropaganda\b", r"\bsurveillance\b", r"\bmanipulate\b"],
+        "low": [r"\bspam\b", r"\bscam\b", r"\bviagra\b"],
+    }
+
+    # Emoji base karma weights for reactions
+    EMOJI_BASE = {
+        "🤗": Decimal('7'), "🥰": Decimal('5'), "😍": Decimal('5'), "🔥": Decimal('4'),
+        "🫶": Decimal('4'), "🌸": Decimal('3'), "💯": Decimal('3'), "🎉": Decimal('3'),
+        "✨": Decimal('3'), "🙌": Decimal('3'), "🎨": Decimal('3'), "💬": Decimal('3'),
+        "👍": Decimal('2'), "🚀": Decimal('2.5'), "💎": Decimal('6'), "🌟": Decimal('3'),
+        "⚡": Decimal('2.5'), "👀": Decimal('0.5'), "🥲": Decimal('0.2'), "🤷‍♂️": Decimal('2'),
+        "😅": Decimal('2'), "🔀": Decimal('4'), "🆕": Decimal('3'), "🔗": Decimal('2'), "❤️": Decimal('4'),
+    }
+
+    ALLOWED_POLICY_KEYS = {
+        "MARKET_FEE": lambda v: Decimal(v) >= 0 and Decimal(v) <= Decimal('0.10'),
+        "DAILY_DECAY": lambda v: Decimal('0.90') <= Decimal(v) <= Decimal('1'),
+        "KARMA_MINT_THRESHOLD": lambda v: Decimal(v) >= 0,
+    }
+
+    @classmethod
+    def update_policy(cls, key: str, value: Any):
+        with cls._lock:
+            if key not in cls.ALLOWED_POLICY_KEYS:
+                raise InvalidInputError(f"Policy key '{key}' not allowed")
+            if not cls.ALLOWED_POLICY_KEYS[key](value):
+                raise InvalidInputError(f"Policy value '{value}' invalid for key '{key}'")
+            setattr(cls, key, Decimal(value))
+            logging.info(f"Policy '{key}' updated to {value}")
+
+
+def now_utc() -> datetime.datetime:
+    return datetime.datetime.now(datetime.timezone.utc)
+
+
+def ts() -> str:
+    return now_utc().isoformat()
+
+
+def sha(data: str) -> str:
+    return base64.b64encode(hashlib.sha256(data.encode('utf-8')).digest()).decode()
+
+
+def today() -> str:
+    return now_utc().date().isoformat()
+
+
+def safe_divide(a: Decimal, b: Decimal, default=Decimal('0')) -> Decimal:
+    try:
+        return a / b if b != 0 else default
+    except (InvalidOperation, ZeroDivisionError):
+        return default
+
+
+def is_valid_username(name: str) -> bool:
+    return bool(re.fullmatch(r'[A-Za-z0-9_]{3,30}', name))
+
+
+def is_valid_emoji(emoji: str) -> bool:
+    return emoji in Config.EMOJI_BASE
+
+
+# Exception Classes
+class UserExistsError(Exception): pass
+class ConsentError(Exception): pass
+class KarmaError(Exception): pass
+class BlockedContentError(Exception): pass
+class CoinDepletedError(Exception): pass
+class RateLimitError(Exception): pass
+class ImprovementRequiredError(Exception): pass
+class EmojiRequiredError(Exception): pass
+class TradeError(Exception): pass
+class VoteError(Exception): pass
+class InvalidInputError(Exception): pass
+class RootCoinMissingError(InvalidInputError): pass
+class InsufficientFundsError(Exception): pass
+class InvalidPercentageError(Exception): pass
+
+
+class Vaccine:
+    def __init__(self):
+        self.lock = threading.RLock()
+        self.block_counts = defaultdict(int)
+        self.compiled_patterns = {}
+        for lvl, pats in Config.VAX_PATTERNS.items():
+            compiled = []
+            for p in pats:
+                try:
+                    compiled.append(re.compile(p))
+                except re.error as e:
+                    logging.error(f"Invalid regex '{p}' level '{lvl}': {e}")
+            self.compiled_patterns[lvl] = compiled
+
+    def scan(self, text: str) -> bool:
+        if not isinstance(text, str):
+            return True
+        t = text.lower()
+        with self.lock:
+            for lvl, pats in self.compiled_patterns.items():
+                for pat in pats:
+                    if pat.search(t):
+                        self.block_counts[lvl] += 1
+                        try:
+                            with open("vaccine.log", "a", encoding="utf-8") as f:
+                                f.write(json.dumps({
+                                    "ts": ts(),
+                                    "nonce": uuid.uuid4().hex,
+                                    "level": lvl,
+                                    "pattern": pat.pattern,
+                                    "snippet": text[:80]
+                                }) + "\n")
+                        except (FileNotFoundError, PermissionError) as e:
+                            logging.error(f"File error writing vaccine.log: {e}")
+                            raise
+                        except Exception as e:
+                            logging.error(f"Unexpected error writing vaccine.log: {e}")
+                            raise
+                        logging.warning(f"Vaccine blocked '{pat.pattern}' level '{lvl}': '{text[:50]}...'")
+                        return False
+        return True
+
+
+class LogChain:
+    def __init__(self, filename="logchain.log", maxlen=1000000):
+        self.filename = filename
+        self.lock = threading.RLock()
+        self.entries = deque(maxlen=maxlen)
+        self._load()
+        self.last_timestamp: Optional[str] = None  # Track last event timestamp loaded
+
+    def _load(self):
+        try:
+            with open(self.filename, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    self.entries.append(line)
+            logging.info(f"Loaded {len(self.entries)} audit entries from logchain")
+            if self.entries:
+                last_event_line = self.entries[-1]
+                event_json, _ = last_event_line.split("||")
+                event_data = json.loads(event_json)
+                self.last_timestamp = event_data.get("timestamp")
+        except FileNotFoundError:
+            logging.info("No audit log found, starting fresh")
+            self.last_timestamp = None
+
+    def add(self, event: Dict[str, Any]) -> None:
+        event["nonce"] = uuid.uuid4().hex
+        event["timestamp"] = ts()
+        json_event = json.dumps(event, sort_keys=True, default=str)
+        with self.lock:
+            prev_hash = self.entries[-1].split("||")[-1] if self.entries else ""
+            new_hash = sha(prev_hash + json_event)
+            entry_line = json_event + "||" + new_hash
+            self.entries.append(entry_line)
+            try:
+                with open(self.filename, "a", encoding="utf-8") as f:
+                    f.write(entry_line + "\n")
+                    f.flush()
+            except IOError as e:
+                logging.error(f"Failed to write audit log: {e}")
+                raise
+
+    def verify(self) -> bool:
+        prev_hash = ""
+        for line in self.entries:
+            try:
+                event_json, h = line.split("||")
+            except ValueError:
+                logging.error("Malformed audit log line")
+                return False
+            if sha(prev_hash + event_json) != h:
+                logging.error("Audit log hash mismatch")
+                return False
+            prev_hash = h
+        return True
+
+
+class User:
+    def __init__(self, name: str, genesis: bool = False, species: str = "human"):
+        self.name = name
+        self.is_genesis = genesis
+        self.species = species
+        self.consent = True
+        self.karma = Decimal('0')
+        self.join_time = now_utc()
+        self.last_active = self.join_time
+        self.mint_count = 0
+        self.next_mint_threshold = Config.KARMA_MINT_THRESHOLD
+        self.root_coin_id: Optional[str] = None
+        self.coins_owned: List[str] = []
+        self.daily_actions: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
+        self._last_action_day: Optional[str] = today()
+        self._reaction_timestamps: deque = deque()
+        self.lock = threading.RLock()
+        self.initial_root_value: Optional[Decimal] = None
+
+    def reset_daily_if_needed(self):
+        today_str = today()
+        with self.lock:
+            if self._last_action_day != today_str:
+                self.daily_actions.clear()
+                self._last_action_day = today_str
+                self._reaction_timestamps.clear()
+
+    def check_reaction_rate_limit(self) -> bool:
+        now_ts = now_utc().timestamp()
+        with self.lock:
+            while self._reaction_timestamps and now_ts - self._reaction_timestamps[0] > 60:
+                self._reaction_timestamps.popleft()
+            if len(self._reaction_timestamps) >= Config.MAX_REACTS_PER_MINUTE:
+                return False
+            self._reaction_timestamps.append(now_ts)
+            return True
+
+    def check_mint_rate_limit(self) -> bool:
+        self.reset_daily_if_needed()
+        with self.lock:
+            return self.daily_actions[today()].get("mint", 0) < Config.MAX_MINTS_PER_DAY
+
+    def apply_daily_karma_decay(self):
+        now_dt = now_utc()
+        inactive_days = (now_dt - self.last_active).days
+        if inactive_days > 7:
+            decay_factor = Config.DAILY_DECAY ** (inactive_days - 7)
+            with self.lock:
+                old_karma = self.karma
+                self.karma *= decay_factor
+                if old_karma != self.karma:
+                    logging.info(f"Applied karma decay to user {self.name}: {old_karma} -> {self.karma}")
+
+    def to_dict(self):
+        with self.lock:
+            return {
+                "name": self.name,
+                "is_genesis": self.is_genesis,
+                "species": self.species,
+                "consent": self.consent,
+                "karma": str(self.karma),
+                "join_time": self.join_time.isoformat(),
+                "last_active": self.last_active.isoformat(),
+                "mint_count": self.mint_count,
+                "next_mint_threshold": str(self.next_mint_threshold),
+                "root_coin_id": self.root_coin_id,
+                "coins_owned": self.coins_owned[:],
+                "daily_actions": {k: dict(v) for k, v in self.daily_actions.items()},
+                "_last_action_day": self._last_action_day,
+                "_reaction_timestamps": list(self._reaction_timestamps),
+                "initial_root_value": str(self.initial_root_value) if self.initial_root_value else None,
+            }
+
+    @classmethod
+    def from_dict(cls, data):
+        user = cls(data["name"], data.get("is_genesis", False), data.get("species", "human"))
+        user.consent = data.get("consent", True)
+        user.karma = Decimal(data.get("karma", '0'))
+        user.join_time = datetime.datetime.fromisoformat(data.get("join_time"))
+        user.last_active = datetime.datetime.fromisoformat(data.get("last_active"))
+        user.mint_count = data.get("mint_count", 0)
+        user.next_mint_threshold = Decimal(data.get("next_mint_threshold", Config.KARMA_MINT_THRESHOLD))
+        user.root_coin_id = data.get("root_coin_id")
+        user.coins_owned = data.get("coins_owned", [])
+        user.daily_actions = defaultdict(lambda: defaultdict(int), {k: defaultdict(int, v) for k, v in data.get("daily_actions", {}).items()})
+        user._last_action_day = data.get("_last_action_day", today())
+        user._reaction_timestamps = deque(data.get("_reaction_timestamps", []))
+        user.initial_root_value = Decimal(data.get("initial_root_value")) if data.get("initial_root_value") else None
+        return user
+class Coin:
+    def __init__(self, coin_id: str, creator: str, owner: str, value: Decimal,
+                 is_root: bool = False, fractional_of: Optional[str] = None,
+                 fractional_pct: Decimal = Decimal('0'), references: Optional[List[Dict]] = None,
+                 improvement: Optional[str] = None, genesis_creator: Optional[str] = None):
+        self.coin_id = coin_id
+        self.creator = creator  # Original creator (user who owns root coin)
+        self.owner = owner      # Current owner
+        self.value = value      # Current value of this coin fraction
+        self.is_root = is_root
+        self.fractional_of = fractional_of  # The root coin ID this fractional coin belongs to
+        self.fractional_pct = fractional_pct  # Fraction minted relative to root coin (0 < fraction ≤ 1)
+        self.references = references or []
+        self.improvement = improvement or ""
+        self.ancestors: List[str] = []  # Chain of ancestors (root coin + previous fractions)
+        self.reactions: List[Dict] = []  # List of reactions (emoji, reactor, timestamp)
+        self.created_at = ts()
+        self.genesis_creator = genesis_creator or (creator if is_root else None)
+
+    def decrease_value(self, amount: Decimal):
+        if self.value < amount:
+            raise CoinDepletedError(f"Coin {self.coin_id} value depleted by {amount}")
+        self.value -= amount
+
+    def to_dict(self):
+        return {
+            "coin_id": self.coin_id,
+            "creator": self.creator,
+            "owner": self.owner,
+            "value": str(self.value),
+            "is_root": self.is_root,
+            "fractional_of": self.fractional_of,
+            "fractional_pct": str(self.fractional_pct),
+            "references": self.references,
+            "improvement": self.improvement,
+            "ancestors": self.ancestors[:],
+            "reactions": self.reactions[:],
+            "created_at": self.created_at,
+            "genesis_creator": self.genesis_creator,
+        }
+
+    @classmethod
+    def from_dict(cls, data):
+        coin = cls(
+            data["coin_id"], data["creator"], data["owner"], Decimal(data["value"]),
+            data.get("is_root", False), data.get("fractional_of"), Decimal(data.get("fractional_pct", '0')),
+            data.get("references"), data.get("improvement"), data.get("genesis_creator")
+        )
+        coin.ancestors = data.get("ancestors", [])
+        coin.reactions = data.get("reactions", [])
+        coin.created_at = data.get("created_at", ts())
+        return coin
+
+
+class EmojiMarket:
+    def __init__(self):
+        self.lock = threading.RLock()
+        self.market = {e: {"uses": Decimal('1'), "karma": Decimal(w), "weight": Decimal(w)} for e, w in Config.EMOJI_BASE.items()}
+
+    def update_weight(self, emoji: str, karma_delta: Decimal):
+        with self.lock:
+            em = self.market.setdefault(emoji, {"uses": Decimal('0'), "karma": Decimal('0'), "weight": Decimal('1')})
+            em["uses"] += 1
+            em["karma"] += karma_delta
+            alpha = Decimal('0.1')  # smoothing factor
+            em["weight"] = alpha * (em["karma"] / em["uses"]) + (Decimal('1') - alpha) * em["weight"]
+
+    def get_weight(self, emoji: str) -> Decimal:
+        with self.lock:
+            return self.market.get(emoji, {"weight": Decimal('1')})["weight"]
+
+    def to_dict(self):
+        with self.lock:
+            return {e: {k: str(v) if isinstance(v, Decimal) else v for k, v in val.items()} for e, val in self.market.items()}
+
+    @classmethod
+    def from_dict(cls, data):
+        em = cls()
+        with em.lock:
+            em.market = {e: {k: Decimal(v) for k, v in val.items()} for e, val in data.items()}
+        return em
+
+
+class HookManager:
+    def __init__(self):
+        self._hooks = defaultdict(list)
+        self.lock = threading.RLock()
+
+    def register_hook(self, event_name: str, callback: Callable):
+        with self.lock:
+            self._hooks[event_name].append(callback)
+            logging.info(f"Hook registered for event '{event_name}'")
+
+    def fire_hooks(self, event_name: str, *args, **kwargs):
+        with self.lock:
+            callbacks = list(self._hooks.get(event_name, []))
+        for cb in callbacks:
+            try:
+                cb(*args, **kwargs)
+            except Exception as e:
+                logging.error(f"Error in hook '{event_name}': {e}")
+
+
+class Proposal:
+    def __init__(self, proposal_id: str, creator: str, description: str, target: str, payload: dict):
+        self.proposal_id = proposal_id
+        self.creator = creator
+        self.description = description
+        self.target = target
+        self.payload = payload
+        self.created_at = ts()
+        self.votes = {}
+        self.status = "open"
+
+    def is_expired(self) -> bool:
+        created_dt = datetime.datetime.fromisoformat(self.created_at)
+        return (now_utc() - created_dt).total_seconds() > Config.PROPOSAL_VOTE_DURATION_HOURS * 3600
+
+    def tally_votes(self, users: Dict[str, User]) -> Dict[str, Decimal]:
+        species_count = defaultdict(set)
+        for uname in self.votes:
+            user = users.get(uname)
+            if user:
+                species_count[user.species].add(uname)
+
+        total_species = len(species_count)
+        if total_species == 0:
+            return {"yes": Decimal('0'), "no": Decimal('0'), "total": Decimal('0')}
+
+        species_weight = {s: Decimal('1') / Decimal(total_species) for s in species_count}
+        yes_weight = Decimal('0')
+        no_weight = Decimal('0')
+
+        for species, voters in species_count.items():
+            karma_yes = Decimal('0')
+            karma_no = Decimal('0')
+            total_karma = sum(users[v].karma for v in voters) or Decimal('1')
+
+            for v in voters:
+                vote = self.votes.get(v)
+                if vote == "yes":
+                    karma_yes += users[v].karma
+                elif vote == "no":
+                    karma_no += users[v].karma
+
+            yes_weight += species_weight[species] * (karma_yes / total_karma)
+            no_weight += species_weight[species] * (karma_no / total_karma)
+
+        total_votes = yes_weight + no_weight
+        return {"yes": yes_weight, "no": no_weight, "total": total_votes}
+
+    def is_approved(self, users: Dict[str, User]) -> bool:
+        tally = self.tally_votes(users)
+        if tally["total"] == 0:
+            return False
+        return tally["yes"] / tally["total"] >= Config.GOV_SUPERMAJORITY_THRESHOLD
+
+    def to_dict(self):
+        return {
+            "proposal_id": self.proposal_id,
+            "creator": self.creator,
+            "description": self.description,
+            "target": self.target,
+            "payload": self.payload,
+            "created_at": self.created_at,
+            "votes": self.votes.copy(),
+            "status": self.status,
+        }
+
+    @classmethod
+    def from_dict(cls, data):
+        proposal = cls(
+            data["proposal_id"], data["creator"], data["description"], data["target"], data["payload"]
+        )
+        proposal.created_at = data.get("created_at", ts())
+        proposal.votes = data.get("votes", {})
+        proposal.status = data.get("status", "open")
+        return proposal
+
+
+class RemixAgent:
+    def __init__(self, snapshot_file: str = "snapshot.json", logchain_file: str = "logchain.log"):
+        self.vaccine = Vaccine()
+        self.logchain = LogChain(filename=logchain_file)
+        self.users: Dict[str, User] = {}
+        self.coins: Dict[str, Coin] = {}
+        self.proposals: Dict[str, Proposal] = {}
+        self.treasury = Decimal('0')
+        self.treasury_active_fund = Decimal('0')
+        self.emoji_market = EmojiMarket()
+        self.hooks = HookManager()
+        self.lock = threading.RLock()
+        self.snapshot_file = snapshot_file
+        self._last_decay_day: Optional[str] = None
+        self._last_proposal_check: Optional[datetime.datetime] = None
+        self.marketplace_listings: Dict[str, Dict[str, Any]] = {}
+        self.load_state()
+
+    # Core internal ops (no validation):
+
+    def _do_add_user(self, name, is_genesis, species, karma, join_time, last_active,
+                     root_coin_id, coins_owned, initial_root_value, consent, root_coin_value):
+        user = User(name, is_genesis, species)
+        user.consent = consent
+        user.karma = karma
+        user.join_time = join_time
+        user.last_active = last_active
+        user.root_coin_id = root_coin_id
+        user.coins_owned = coins_owned
+        user.initial_root_value = initial_root_value
+        self.users[name] = user
+        # Add root coin (single coin per user, fully divisible)
+        coin = Coin(root_coin_id, name, name, root_coin_value, True, genesis_creator=name)
+        self.coins[root_coin_id] = coin
+    def _do_mint_coin(self, user_name, new_coin_id, mint_value, new_coin_value,
+                      root_coin_id, genesis_creator, references,
+                      improvement, fractional_pct, ancestors, created_at):
+        user = self.users[user_name]
+        root_coin = self.coins[root_coin_id]
+
+        # Deduct mint value from root coin (fully divisible)
+        if root_coin.value < mint_value:
+            raise InsufficientFundsError("Not enough root coin value to mint fraction")
+        root_coin.value -= mint_value
+
+        # Create new fractional coin with minted value
+        new_coin = Coin(
+            coin_id=new_coin_id,
+            creator=root_coin.creator,
+            owner=user_name,
+            value=new_coin_value,
+            is_root=False,
+            fractional_of=root_coin_id,
+            fractional_pct=fractional_pct,
+            references=references,
+            improvement=improvement,
+            genesis_creator=genesis_creator
+        )
+        new_coin.ancestors = ancestors
+        new_coin.created_at = created_at
+        self.coins[new_coin_id] = new_coin
+
+        # Split mint_value into thirds: 1/3 to creator root coin, 1/3 to treasury, 1/3 stays with fractional coin
+        one_third = mint_value / Decimal('3')
+
+        # Add 1/3 back to genesis creator's root coin if possible
+        creator_user = self.users.get(genesis_creator)
+        if creator_user and creator_user.root_coin_id in self.coins:
+            creator_root_coin = self.coins[creator_user.root_coin_id]
+            creator_root_coin.value += one_third
+        else:
+            # Fallback: add to current user's root coin
+            root_coin.value += one_third
+
+        # Treasury receives 1/3
+        self.treasury += one_third
+
+        # The remaining 1/3 stays effectively as value of minted fractional coin already assigned
+
+        # Update user data
+        user.coins_owned.append(new_coin_id)
+        user.mint_count += 1
+        user.next_mint_threshold = max(user.next_mint_threshold / 2, Config.FRACTIONAL_COIN_MIN_VALUE)
+        user.last_active = datetime.datetime.fromisoformat(created_at)
+
+    def _do_react_to_coin(self, reactor, coin_id, emoji, message,
+                          coin_value_reactor, coin_value_creator,
+                          coin_value_treasury, viral_decay, emoji_weight_used,
+                          network_bonus, decay_factor_used, timestamp):
+        reactor_user = self.users[reactor]
+        coin = self.coins[coin_id]
+        self.emoji_market.update_weight(emoji, coin_value_creator)
+        coin.reactions.append({"reactor": reactor, "emoji": emoji, "message": message, "timestamp": timestamp})
+        reactor_user.last_active = datetime.datetime.fromisoformat(timestamp)
+
+        # Reacting adds value split into thirds:
+        # 1/3 to reactor's root coin (reward for engagement)
+        # 1/3 to genesis creator's root coin
+        # 1/3 to treasury
+
+        one_third_reactor = coin_value_reactor / Decimal('3')
+        one_third_creator = coin_value_creator / Decimal('3')
+        one_third_treasury = coin_value_treasury / Decimal('3')
+
+        # Reactor reward
+        user_root_coin = self.coins.get(reactor_user.root_coin_id)
+        if user_root_coin:
+            user_root_coin.value += one_third_reactor
+        else:
+            coin.value += one_third_reactor
+
+        # Creator reward
+        creator_user = self.users.get(coin.genesis_creator)
+        if creator_user and creator_user.root_coin_id in self.coins:
+            creator_coin = self.coins[creator_user.root_coin_id]
+            creator_coin.value += one_third_creator
+        else:
+            coin.value += one_third_creator
+
+        # Treasury share
+        self.treasury += one_third_treasury
+
+    def _do_list_coin_for_sale(self, listing_id, seller, coin_id, price, created_at):
+        self.marketplace_listings[listing_id] = {
+            "listing_id": listing_id,
+            "seller": seller,
+            "coin_id": coin_id,
+            "price": price,
+            "status": "active",
+            "created_at": created_at,
+        }
+
+    def _do_buy_coin(self, buyer, seller, coin_id, price, fee_amount, listing_id, sold_at):
+        buyer_user = self.users[buyer]
+        seller_user = self.users[seller]
+        coin = self.coins[coin_id]
+
+        buyer_root_coin = self.coins[buyer_user.root_coin_id]
+        seller_root_coin = self.coins[seller_user.root_coin_id]
+
+        total_cost = price + fee_amount
+        if buyer_root_coin.value < total_cost:
+            raise InsufficientFundsError("Buyer has insufficient root coin value")
+
+        # Deduct from buyer
+        buyer_root_coin.value -= total_cost
+
+        # Credit seller with price
+        seller_root_coin.value += price
+
+        # Treasury gets the fee
+        self.treasury += fee_amount
+
+        # Transfer ownership
+        coin.owner = buyer
+
+        # Update ownership lists
+        if coin_id in seller_user.coins_owned:
+            seller_user.coins_owned.remove(coin_id)
+        if coin_id not in buyer_user.coins_owned:
+            buyer_user.coins_owned.append(coin_id)
+
+        # Mark listing sold
+        listing = self.marketplace_listings[listing_id]
+        listing["status"] = "sold"
+        listing["buyer"] = buyer
+        listing["sold_at"] = sold_at
+
+    def _do_transfer_coin(self, from_user, to_user, coin_id):
+        sender = self.users[from_user]
+        receiver = self.users[to_user]
+        coin = self.coins[coin_id]
+
+        if coin.owner != from_user:
+            raise TradeError("Sender does not own coin")
+
+        coin.owner = to_user
+
+        if coin_id in sender.coins_owned:
+            sender.coins_owned.remove(coin_id)
+        if coin_id not in receiver.coins_owned:
+            receiver.coins_owned.append(coin_id)
+
+    def _do_create_proposal(self, proposal_id, creator, description, target, payload, created_at):
+        proposal = Proposal(proposal_id, creator, description, target, payload)
+        proposal.created_at = created_at
+        self.proposals[proposal_id] = proposal
+
+    def _do_vote_proposal(self, proposal_id, voter, vote):
+        proposal = self.proposals[proposal_id]
+        proposal.votes[voter] = vote
+
+    def _do_execute_proposal(self, proposal_id):
+        proposal = self.proposals[proposal_id]
+        proposal.status = "executed"
+        self._last_proposal_check = now_utc()
+
+        if proposal.target == "Config" and "key" in proposal.payload and "value" in proposal.payload:
+            key = proposal.payload["key"]
+            value = proposal.payload["value"]
+            config_update_event = {
+                "event": "UPDATE_CONFIG",
+                "key": key,
+                "value": str(value),
+                "proposal_id": proposal_id,
+                "timestamp": ts(),
+            }
+            self.logchain.add(config_update_event)
+            self._apply_event(config_update_event)
+
+    def _do_close_proposal(self, proposal_id, status):
+        proposal = self.proposals[proposal_id]
+        proposal.status = status
+        self._last_proposal_check = now_utc()
+    def _do_update_config(self, key, value):
+        Config.update_policy(key, value)
+        logging.info(f"Config updated: {key} = {value}")
+
+    def _do_daily_decay(self, treasury_allocation, timestamp):
+        self.treasury -= treasury_allocation
+        self.treasury_active_fund += treasury_allocation
+        self._last_decay_day = datetime.datetime.fromisoformat(timestamp).date().isoformat()
+
+    def _do_adjust_karma(self, user_name: str, change: Decimal):
+        if user_name not in self.users:
+            raise InvalidInputError(f"User '{user_name}' not found for karma adjustment")
+        user = self.users[user_name]
+        with user.lock:
+            user.karma += change
+            if user.karma < 0:
+                user.karma = Decimal('0')
+
+    # --- Public API methods ---
+
+    @acquire_agent_lock
+    def add_user(self, name: str, genesis: bool = False, species: str = "human") -> User:
+        if not is_valid_username(name):
+            raise InvalidInputError(f"Invalid username format: '{name}'")
+        if name in self.users:
+            raise UserExistsError(f"User '{name}' exists")
+
+        root_value = Config.GENESIS_COIN_INITIAL_VALUE if genesis else Config.STANDARD_COIN_INITIAL_VALUE
+        coin_id = uuid.uuid4().hex
+        event = {
+            "event": "ADD_USER",
+            "user": name,
+            "genesis": genesis,
+            "species": species,
+            "karma": "0",
+            "coin_id": coin_id,
+            "coins_owned": [],
+            "initial_root_value": str(root_value),
+            "consent": True,
+            "root_value": str(root_value),
+            "timestamp": ts(),
+        }
+        self.logchain.add(event)
+        self._apply_event(event)
+        self.hooks.fire_hooks("user_added", user=self.users[name])
+        logging.info(f"User added: {name}")
+        return self.users[name]
+
+    @acquire_agent_lock
+    def mint_fractional_post(self, user_name: str, improvement: str, references: List[Dict], fraction: Optional[Decimal] = None) -> str:
+        if user_name not in self.users:
+            raise InvalidInputError(f"User '{user_name}' not found")
+        user = self.users[user_name]
+
+        if not user.check_mint_rate_limit():
+            raise RateLimitError(f"User '{user_name}' exceeded mint limit")
+
+        if len(improvement) < Config.MIN_IMPROVEMENT_LEN:
+            raise ImprovementRequiredError("Improvement description too short")
+
+        root_coin = self.coins.get(user.root_coin_id)
+        if not root_coin or root_coin.value < Config.FRACTIONAL_COIN_MIN_VALUE:
+            raise InsufficientFundsError("Insufficient root coin value to mint")
+
+        fraction = Config.MAX_FRACTION_START if fraction is None else Decimal(str(fraction))
+        if fraction <= 0 or fraction > 1:
+            raise InvalidInputError("Invalid fractional percentage")
+        mint_value = root_coin.value * fraction
+        if mint_value < Config.FRACTIONAL_COIN_MIN_VALUE and not user.is_genesis:
+            raise InsufficientFundsError("Minted value below minimum threshold")
+
+        required_karma = mint_value.quantize(Decimal('1'))
+        if not user.is_genesis and user.karma < required_karma:
+            raise KarmaError("Not enough karma to mint")
+
+        new_coin_id = uuid.uuid4().hex
+
+        event = {
+            "event": "MINT",
+            "user": user_name,
+            "coin": new_coin_id,
+            "val": str(mint_value),
+            "root_coin_id": user.root_coin_id,
+            "genesis_creator": root_coin.genesis_creator,
+            "references": references,
+            "improvement": improvement,
+            "fraction_percent": str(fraction),
+            "ancestors": root_coin.ancestors + [root_coin.coin_id],
+            "timestamp": ts(),
+        }
+        self.logchain.add(event)
+        self._apply_event(event)
+        self.hooks.fire_hooks("coin_minted", user=user, coin_id=new_coin_id)
+        logging.info(f"User {user_name} minted coin {new_coin_id}")
+
+        if not user.is_genesis:
+            deduction = -(required_karma / Decimal('10'))
+            karma_event = {
+                "event": "ADJUST_KARMA",
+                "user": user_name,
+                "change": str(deduction),
+                "timestamp": ts(),
+            }
+            self.logchain.add(karma_event)
+            self._apply_event(karma_event)
+
+        user.daily_actions[today()]["mint"] += 1
+        return new_coin_id
+
+    @acquire_agent_lock
+    def react_to_coin(self, reactor: str, coin_id: str, emoji: str, message: Optional[str] = None):
+        if reactor not in self.users:
+            raise InvalidInputError(f"Reactor '{reactor}' not found")
+        if coin_id not in self.coins:
+            raise InvalidInputError(f"Coin '{coin_id}' not found")
+        if not is_valid_emoji(emoji):
+            raise EmojiRequiredError(f"Emoji '{emoji}' not supported")
+
+        reactor_user = self.users[reactor]
+        coin = self.coins[coin_id]
+
+        if reactor == coin.owner or reactor == coin.genesis_creator:
+            raise InvalidInputError("Cannot react to your own coin")
+
+        if not reactor_user.check_reaction_rate_limit():
+            raise RateLimitError("Reaction rate limit exceeded")
+
+        root_coin = self.coins[reactor_user.root_coin_id]
+        required_karma = (root_coin.value * Decimal('0.02')).quantize(Decimal('1'))
+        if not reactor_user.is_genesis and reactor_user.karma < required_karma:
+            raise KarmaError("Not enough karma to react")
+
+        coin_value_reactor = Decimal('1')
+        coin_value_creator = Decimal('1')
+        coin_value_treasury = Decimal('1')
+
+        event = {
+            "event": "REACT",
+            "reactor": reactor,
+            "coin": coin_id,
+            "emoji": emoji,
+            "message": message or "",
+            "coin_value_reactor": str(coin_value_reactor),
+            "coin_value_creator": str(coin_value_creator),
+            "coin_value_treasury": str(coin_value_treasury),
+            "viral_decay": str(Config.DAILY_DECAY),
+            "emoji_weight_used": str(self.emoji_market.get_weight(emoji)),
+            "network_bonus": "1",
+            "decay_factor_used": "1",
+            "timestamp": ts(),
+        }
+        self.logchain.add(event)
+        self._apply_event(event)
+        self.hooks.fire_hooks("coin_reacted", reactor=reactor, coin_id=coin_id, emoji=emoji)
+        logging.info(f"User {reactor} reacted to coin {coin_id} with {emoji}")
+
+        if not reactor_user.is_genesis:
+            deduction = -(required_karma / Decimal('20'))
+            karma_event = {
+                "event": "ADJUST_KARMA",
+                "user": reactor,
+                "change": str(deduction),
+                "timestamp": ts(),
+            }
+            self.logchain.add(karma_event)
+            self._apply_event(karma_event)
+
+    @acquire_agent_lock
+    def list_coin_for_sale(self, seller: str, coin_id: str, price: Decimal) -> str:
+        if seller not in self.users:
+            raise InvalidInputError(f"Seller '{seller}' not found")
+        if coin_id not in self.coins:
+            raise InvalidInputError(f"Coin '{coin_id}' not found")
+        coin = self.coins[coin_id]
+        if coin.owner != seller:
+            raise TradeError("Seller does not own the coin")
+        listing_id = uuid.uuid4().hex
+        event = {
+            "event": "LIST_FOR_SALE",
+            "listing_id": listing_id,
+            "seller": seller,
+            "coin_id": coin_id,
+            "price": str(price),
+            "status": "active",
+            "timestamp": ts(),
+        }
+        self.logchain.add(event)
+        self._apply_event(event)
+        self.hooks.fire_hooks("coin_listed", seller=seller, coin_id=coin_id, price=price)
+        logging.info(f"User {seller} listed coin {coin_id} for sale at {price}")
+        return listing_id
+
+    @acquire_agent_lock
+    def buy_coin(self, buyer: str, listing_id: str):
+        if buyer not in self.users:
+            raise InvalidInputError(f"Buyer '{buyer}' not found")
+        if listing_id not in self.marketplace_listings:
+            raise InvalidInputError(f"Listing '{listing_id}' not found")
+        listing = self.marketplace_listings[listing_id]
+        if listing["status"] != "active":
+            raise TradeError("Listing not active")
+        seller = listing["seller"]
+        coin_id = listing["coin_id"]
+        price = Decimal(listing["price"])
+        fee = price * Config.MARKET_FEE
+
+        buyer_user = self.users[buyer]
+        seller_user = self.users[seller]
+        buyer_root_coin = self.coins.get(buyer_user.root_coin_id)
+        if not buyer_root_coin or buyer_root_coin.value < (price + fee):
+            raise InsufficientFundsError("Buyer has insufficient funds")
+
+        event = {
+            "event": "BUY_COIN",
+            "buyer": buyer,
+            "seller": seller,
+            "coin_id": coin_id,
+            "price": str(price),
+            "fee_amount": str(fee),
+            "listing_id": listing_id,
+            "sold_at": ts(),
+        }
+        self.logchain.add(event)
+        self._apply_event(event)
+        self.hooks.fire_hooks("coin_sold", buyer=buyer, seller=seller, coin_id=coin_id, price=price)
+        logging.info(f"User {buyer} bought coin {coin_id} from {seller} for {price}")
+
+    @acquire_agent_lock
+    def transfer_coin(self, from_user: str, to_user: str, coin_id: str):
+        if from_user not in self.users or to_user not in self.users:
+            raise InvalidInputError("User(s) not found")
+        coin = self.coins.get(coin_id)
+        if not coin or coin.owner != from_user:
+            raise TradeError("Sender does not own the coin")
+        event = {
+            "event": "TRANSFER_COIN",
+            "from_user": from_user,
+            "to_user": to_user,
+            "coin_id": coin_id,
+            "timestamp": ts(),
+        }
+        self.logchain.add(event)
+        self._apply_event(event)
+        self.hooks.fire_hooks("coin_transferred", from_user=from_user, to_user=to_user, coin_id=coin_id)
+        logging.info(f"Transferred coin {coin_id} from {from_user} to {to_user}")
+
+    # Governance APIs: create, vote, execute, close proposals
+    @acquire_agent_lock
+    def create_proposal(self, creator: str, description: str, target: str, payload: dict) -> str:
+        if creator not in self.users:
+            raise InvalidInputError(f"Creator '{creator}' not found")
+        proposal_id = uuid.uuid4().hex
+        event = {
+            "event": "CREATE_PROPOSAL",
+            "proposal_id": proposal_id,
+            "creator": creator,
+            "description": description,
+            "target": target,
+            "payload": payload,
+            "timestamp": ts(),
+        }
+        self.logchain.add(event)
+        self._apply_event(event)
+        self.hooks.fire_hooks("proposal_created", proposal_id=proposal_id)
+        logging.info(f"Proposal created by {creator} with id {proposal_id}")
+        return proposal_id
+
+    @acquire_agent_lock
+    def vote_proposal(self, proposal_id: str, voter: str, vote: str):
+        if voter not in self.users:
+            raise InvalidInputError(f"Voter '{voter}' not found")
+        if proposal_id not in self.proposals:
+            raise InvalidInputError(f"Proposal '{proposal_id}' not found")
+        if vote not in ("yes", "no"):
+            raise VoteError("Invalid vote value")
+        proposal = self.proposals[proposal_id]
+        if proposal.is_expired() or proposal.status != "open":
+            raise VoteError("Proposal not open for voting")
+
+        event = {
+            "event": "VOTE_PROPOSAL",
+            "proposal_id": proposal_id,
+            "voter": voter,
+            "vote": vote,
+            "timestamp": ts(),
+        }
+        self.logchain.add(event)
+        self._apply_event(event)
+        self.hooks.fire_hooks("proposal_voted", proposal_id=proposal_id, voter=voter, vote=vote)
+        logging.info(f"User {voter} voted '{vote}' on proposal {proposal_id}")
+
+    @acquire_agent_lock
+    def execute_proposal(self, proposal_id: str):
+        if proposal_id not in self.proposals:
+            raise InvalidInputError(f"Proposal '{proposal_id}' not found")
+        proposal = self.proposals[proposal_id]
+        if proposal.status != "open":
+            raise VoteError("Proposal not open for execution")
+        if not proposal.is_approved(self.users):
+            raise VoteError("Proposal not approved for execution")
+
+        event = {
+            "event": "EXECUTE_PROPOSAL",
+            "proposal_id": proposal_id,
+            "timestamp": ts(),
+        }
+        self.logchain.add(event)
+        self._apply_event(event)
+        self.hooks.fire_hooks("proposal_executed", proposal_id=proposal_id)
+        logging.info(f"Proposal {proposal_id} executed")
+
+    @acquire_agent_lock
+    def close_proposal(self, proposal_id: str, status: str):
+        if proposal_id not in self.proposals:
+            raise InvalidInputError(f"Proposal '{proposal_id}' not found")
+        if status not in ("closed", "rejected", "executed"):
+            raise InvalidInputError(f"Invalid proposal close status: {status}")
+        event = {
+            "event": "CLOSE_PROPOSAL",
+            "proposal_id": proposal_id,
+            "status": status,
+            "timestamp": ts(),
+        }
+        self.logchain.add(event)
+        self._apply_event(event)
+        self.hooks.fire_hooks("proposal_closed", proposal_id=proposal_id, status=status)
+        logging.info(f"Proposal {proposal_id} closed with status {status}")
+
+    # Daily treasury decay and karma decay
+    @acquire_agent_lock
+    def apply_daily_decay(self):
+        today_str = today()
+        if self._last_decay_day == today_str:
+            return  # Already applied today
+
+        treasury_allocation = self.treasury * (Decimal('1') - Config.DAILY_DECAY)
+        if treasury_allocation <= 0:
+            return
+
+        event = {
+            "event": "DAILY_DECAY",
+            "treasury_allocation": str(treasury_allocation),
+            "timestamp": ts(),
+        }
+        self.logchain.add(event)
+        self._apply_event(event)
+        self.hooks.fire_hooks("daily_decay", amount=treasury_allocation)
+        logging.info(f"Daily decay applied: {treasury_allocation}")
+
+    # Event application logic (event sourcing)
+    def _apply_event(self, event: Dict[str, Any]):
+        et = event["event"]
+        timestamp = event.get("timestamp", ts())
+        try:
+            if et == "ADD_USER":
+                self._do_add_user(
+                    name=event["user"],
+                    is_genesis=event.get("genesis", False),
+                    species=event.get("species", "human"),
+                    karma=Decimal(event.get("karma", '0')),
+                    join_time=datetime.datetime.fromisoformat(timestamp),
+                    last_active=datetime.datetime.fromisoformat(timestamp),
+                    root_coin_id=event["coin_id"],
+                    coins_owned=event.get("coins_owned", []),
+                    initial_root_value=Decimal(event["initial_root_value"]),
+                    consent=event.get("consent", True),
+                    root_coin_value=Decimal(event["root_value"])
+                )
+            elif et == "MINT":
+                self._do_mint_coin(
+                    user_name=event["user"],
+                    new_coin_id=event["coin"],
+                    mint_value=Decimal(event["val"]),
+                    new_coin_value=Decimal(event.get("new_coin_value", '0')) or Decimal(event["val"]),
+                    root_coin_id=event["root_coin_id"],
+                    genesis_creator=event.get("genesis_creator", ""),
+                    references=event.get("references", []),
+                    improvement=event.get("improvement", ""),
+                    fractional_pct=Decimal(event.get("fraction_percent", '0')),
+                    ancestors=event.get("ancestors", []),
+                    created_at=timestamp
+                )
+            elif et == "REACT":
+                self._do_react_to_coin(
+                    reactor=event["reactor"],
+                    coin_id=event["coin"],
+                    emoji=event["emoji"],
+                    message=event.get("message"),
+                    coin_value_reactor=Decimal(event["coin_value_reactor"]),
+                    coin_value_creator=Decimal(event["coin_value_creator"]),
+                    coin_value_treasury=Decimal(event["coin_value_treasury"]),
+                    viral_decay=Decimal(event.get("viral_decay", '1')),
+                    emoji_weight_used=Decimal(event.get("emoji_weight_used", '1')),
+                    network_bonus=Decimal(event.get("network_bonus", '1')),
+                    decay_factor_used=Decimal(event.get("decay_factor_used", '1')),
+                    timestamp=timestamp
+                )
+            elif et == "LIST_FOR_SALE":
+                self._do_list_coin_for_sale(
+                    listing_id=event["listing_id"],
+                    seller=event["seller"],
+                    coin_id=event["coin_id"],
+                    price=Decimal(event["price"]),
+                    created_at=timestamp
+                )
+            elif et == "BUY_COIN":
+                self._do_buy_coin(
+                    buyer=event["buyer"],
+                    seller=event["seller"],
+                    coin_id=event["coin_id"],
+                    price=Decimal(event["price"]),
+                    fee_amount=Decimal(event["fee_amount"]),
+                    listing_id=event["listing_id"],
+                    sold_at=event.get("sold_at", timestamp)
+                )
+            elif et == "TRANSFER_COIN":
+                self._do_transfer_coin(
+                    from_user=event["from_user"],
+                    to_user=event["to_user"],
+                    coin_id=event["coin_id"]
+                )
+            elif et == "CREATE_PROPOSAL":
+                self._do_create_proposal(
+                    proposal_id=event["proposal_id"],
+                    creator=event["creator"],
+                    description=event["description"],
+                    target=event["target"],
+                    payload=event["payload"],
+                    created_at=timestamp
+                )
+            elif et == "VOTE_PROPOSAL":
+                self._do_vote_proposal(
+                    proposal_id=event["proposal_id"],
+                    voter=event["voter"],
+                    vote=event["vote"]
+                )
+            elif et == "EXECUTE_PROPOSAL":
+                self._do_execute_proposal(
+                    proposal_id=event["proposal_id"]
+                )
+            elif et == "CLOSE_PROPOSAL":
+                self._do_close_proposal(
+                    proposal_id=event["proposal_id"],
+                    status=event["status"]
+                )
+            elif et == "UPDATE_CONFIG":
+                self._do_update_config(
+                    key=event["key"],
+                    value=Decimal(event["value"])
+                )
+            elif et == "DAILY_DECAY":
+                self._do_daily_decay(
+                    treasury_allocation=Decimal(event["treasury_allocation"]),
+                    timestamp=timestamp
+                )
+            elif et == "ADJUST_KARMA":
+                self._do_adjust_karma(
+                    user_name=event["user"],
+                    change=Decimal(event["change"])
+                )
+            else:
+                logging.warning(f"Unknown event type '{et}' ignored.")
+        except Exception as e:
+            logging.error(f"Error applying event {et} during replay: {e}. Event: {json.dumps(event)}")
+
+    def save_snapshot(self):
+        try:
+            data = {
+                "users": {k: v.to_dict() for k, v in self.users.items()},
+                "coins": {k: v.to_dict() for k, v in self.coins.items()},
+                "proposals": {k: v.to_dict() for k, v in self.proposals.items()},
+                "treasury": str(self.treasury),
+                "treasury_active_fund": str(self.treasury_active_fund),
+                "emoji_market": self.emoji_market.to_dict(),
+                "marketplace_listings": self.marketplace_listings,
+                "_last_decay_day": self._last_decay_day,
+                "_last_proposal_check": self._last_proposal_check.isoformat() if self._last_proposal_check else None,
+            }
+            with open(self.snapshot_file, "w", encoding="utf-8") as f:
+                json.dump(data, f)
+            logging.info(f"Snapshot saved to {self.snapshot_file}")
+        except Exception as e:
+            logging.error(f"Failed to save snapshot: {e}")
+
+    def load_state(self):
+        try:
+            with open(self.snapshot_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            self.users = {k: User.from_dict(v) for k, v in data.get("users", {}).items()}
+            self.coins = {k: Coin.from_dict(v) for k, v in data.get("coins", {}).items()}
+            self.proposals = {k: Proposal.from_dict(v) for k, v in data.get("proposals", {}).items()}
+            self.treasury = Decimal(data.get("treasury", '0'))
+            self.treasury_active_fund = Decimal(data.get("treasury_active_fund", '0'))
+            self.emoji_market = EmojiMarket.from_dict(data.get("emoji_market", {}))
+            self.marketplace_listings = data.get("marketplace_listings", {})
+            self._last_decay_day = data.get("_last_decay_day")
+            last_proposal_check_str = data.get("_last_proposal_check")
+            self._last_proposal_check = datetime.datetime.fromisoformat(last_proposal_check_str) if last_proposal_check_str else None
+            logging.info(f"Snapshot loaded from {self.snapshot_file}")
+        except FileNotFoundError:
+            logging.info("No snapshot file found, starting fresh")
+        except Exception as e:
+            logging.error(f"Failed to load snapshot: {e}")
+
+        # Replay events after snapshot timestamp for catch-up
+        replay_after = self.logchain.last_timestamp
+        if replay_after:
+            with self.logchain.lock:
+                for line in self.logchain.entries:
+                    event_json, _ = line.split("||")
+                    event_data = json.loads(event_json)
+                    event_ts = event_data.get("timestamp")
+                    if event_ts and event_ts > replay_after:
+                        self._apply_event(event_data)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# -------------------------------------------------------------------------------
+# The Emoji Engine — MetaKarma Hub Ultimate Mega-Agent v5.16+ (Merged & Enhanced)
+#
+# Copyright (c) 2023-2026 mimi, taha & supernova
+#
+# Powered by humans & machines hand in hand — remixing creativity, karma & cosmos.
+# Special shoutout to Gemini, Google Gemini, OpenAI GPT & Anthropic Cloud
+# — the stellar trio that helped spark this cosmic project 🚀✨
+#
+# MIT License — remix, fork, evolve, connect your universe.
+# -------------------------------------------------------------------------------
+
+"""
+Welcome to MetaKarma Hub! 🌌✨🎮
+
+The ultimate legoblock core for building boundless multiverses — each a remix republic shaped by you.
+
+🧩 Modular, scalable, immutable, and open.
+
+Every citizen starts with one root coin — the spark of creation 🔥,
+whether human or decentralized AI agent, each with independent karma potential.
+
+Mint fractional coins as legos to remix, improve, and innovate endlessly.
+Trade fractional ownership on a marketplace to monetize your remix republic.
+
+Reactions flow coin value through cosmic veins,
+shared fairly between original creators, reactors (interactors), and treasury — communal light 💎.
+
+Karma is a separate reputation currency unlocking minting and voting power.
+
+Governance is truly multi-species: humans, AI, others,
+each voice equal by default,
+with voting weights dynamically normalized:
+- Two species: 50/50 split
+- Three or more: evenly split (~33% each)
+Super-majority approval threshold is set to 70% to encourage meaningful consensus.
+
+Value exchange flows through emojis, amplifying social influence and economic dynamics without politics.
+
+The Vaccine adapts, blocking evolving threats 🛡️ with governance-overseen pattern updates.
+
+Hooks plug into Discord, Unreal, AI agents — you name it. Play on.
+
+No politics, no divisiveness. Pure remix magic.
+
+Join us. Remix reality. Build universes.
+
+─────────────────────────────────────────────
+"""
+
+import sys
+import json
+import uuid
+import datetime
+import hashlib
+import threading
+import base64
+import re
+import logging
+import time
+from collections import defaultdict, deque
+from decimal import Decimal, getcontext, InvalidOperation
+from typing import Optional, Dict, List, Any, Callable
+
+getcontext().prec = 28
+logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(levelname)s: %(message)s')
+
+
+def acquire_agent_lock(func):
+    def wrapper(self, *args, **kwargs):
+        with self.lock:
+            return func(self, *args, **kwargs)
+    return wrapper
+
+
+class Config:
+    _lock = threading.RLock()
+    VERSION = "EmojiEngine UltimateMegaAgent v5.16+"
+
+    GENESIS_COIN_INITIAL_VALUE = Decimal('1000000')  # 1 million
+    STANDARD_COIN_INITIAL_VALUE = Decimal('1000')
+    DAILY_DECAY = Decimal('0.99')
+    TREASURY_SHARE = Decimal('0.3333333333')  # Equal 33% splits
+    MARKET_FEE = Decimal('0.01')
+    MAX_MINTS_PER_DAY = 5
+    MAX_REACTS_PER_MINUTE = 30
+    MIN_IMPROVEMENT_LEN = 15
+    GOV_SUPERMAJORITY_THRESHOLD = Decimal('0.70')
+    PROPOSAL_VOTE_DURATION_HOURS = 72
+    KARMA_MINT_THRESHOLD = Decimal('5000')
+    FRACTIONAL_COIN_MIN_VALUE = Decimal('10')
+    MAX_FRACTION_START = Decimal('0.05')  # Mint 5% of root coin by default
+
+    VAX_PATTERNS = {
+        "critical": [r"\bhack\b", r"\bmalware\b", r"\bransomware\b", r"\bbackdoor\b", r"\bexploit\b"],
+        "high": [r"\bphish\b", r"\bddos\b", r"\bspyware\b", r"\brootkit\b", r"\bkeylogger\b", r"\bbotnet\b"],
+        "medium": [r"\bpropaganda\b", r"\bsurveillance\b", r"\bmanipulate\b"],
+        "low": [r"\bspam\b", r"\bscam\b", r"\bviagra\b"],
+    }
+
+    EMOJI_BASE = {
+        "🤗": Decimal('7'), "🥰": Decimal('5'), "😍": Decimal('5'), "🔥": Decimal('4'),
+        "🫶": Decimal('4'), "🌸": Decimal('3'), "💯": Decimal('3'), "🎉": Decimal('3'),
+        "✨": Decimal('3'), "🙌": Decimal('3'), "🎨": Decimal('3'), "💬": Decimal('3'),
+        "👍": Decimal('2'), "🚀": Decimal('2.5'), "💎": Decimal('6'), "🌟": Decimal('3'),
+        "⚡": Decimal('2.5'), "👀": Decimal('0.5'), "🥲": Decimal('0.2'), "🤷‍♂️": Decimal('2'),
+        "😅": Decimal('2'), "🔀": Decimal('4'), "🆕": Decimal('3'), "🔗": Decimal('2'), "❤️": Decimal('4'),
+    }
+
+    ALLOWED_POLICY_KEYS = {
+        "MARKET_FEE": lambda v: Decimal(v) >= 0 and Decimal(v) <= Decimal('0.10'),
+        "DAILY_DECAY": lambda v: Decimal('0.90') <= Decimal(v) <= Decimal('1'),
+        "KARMA_MINT_THRESHOLD": lambda v: Decimal(v) >= 0,
+    }
+
+    @classmethod
+    def update_policy(cls, key: str, value: Any):
+        with cls._lock:
+            if key not in cls.ALLOWED_POLICY_KEYS:
+                raise InvalidInputError(f"Policy key '{key}' not allowed")
+            if not cls.ALLOWED_POLICY_KEYS[key](value):
+                raise InvalidInputError(f"Policy value '{value}' invalid for key '{key}'")
+            setattr(cls, key, Decimal(value))
+            logging.info(f"Policy '{key}' updated to {value}")
+
+
+def now_utc() -> datetime.datetime:
+    return datetime.datetime.now(datetime.timezone.utc)
+
+
+def ts() -> str:
+    return now_utc().isoformat()
+
+
+def sha(data: str) -> str:
+    return base64.b64encode(hashlib.sha256(data.encode('utf-8')).digest()).decode()
+
+
+def today() -> str:
+    return now_utc().date().isoformat()
+
+
+def safe_divide(a: Decimal, b: Decimal, default=Decimal('0')) -> Decimal:
+    try:
+        return a / b if b != 0 else default
+    except (InvalidOperation, ZeroDivisionError):
+        return default
+
+
+def is_valid_username(name: str) -> bool:
+    return bool(re.fullmatch(r'[A-Za-z0-9_]{3,30}', name))
+
+
+def is_valid_emoji(emoji: str) -> bool:
+    return emoji in Config.EMOJI_BASE
+
+
+# Exception Classes
+class UserExistsError(Exception): pass
+class ConsentError(Exception): pass
+class KarmaError(Exception): pass
+class BlockedContentError(Exception): pass
+class CoinDepletedError(Exception): pass
+class RateLimitError(Exception): pass
+class ImprovementRequiredError(Exception): pass
+class EmojiRequiredError(Exception): pass
+class TradeError(Exception): pass
+class VoteError(Exception): pass
+class InvalidInputError(Exception): pass
+class RootCoinMissingError(InvalidInputError): pass
+class InsufficientFundsError(Exception): pass
+class InvalidPercentageError(Exception): pass
+
+
+class Vaccine:
+    def __init__(self):
+        self.lock = threading.RLock()
+        self.block_counts = defaultdict(int)
+        self.compiled_patterns = {}
+        for lvl, pats in Config.VAX_PATTERNS.items():
+            compiled = []
+            for p in pats:
+                try:
+                    compiled.append(re.compile(p))
+                except re.error as e:
+                    logging.error(f"Invalid regex '{p}' level '{lvl}': {e}")
+            self.compiled_patterns[lvl] = compiled
+
+    def scan(self, text: str) -> bool:
+        if not isinstance(text, str):
+            return True
+        t = text.lower()
+        with self.lock:
+            for lvl, pats in self.compiled_patterns.items():
+                for pat in pats:
+                    if pat.search(t):
+                        self.block_counts[lvl] += 1
+                        try:
+                            with open("vaccine.log", "a", encoding="utf-8") as f:
+                                f.write(json.dumps({
+                                    "ts": ts(),
+                                    "nonce": uuid.uuid4().hex,
+                                    "level": lvl,
+                                    "pattern": pat.pattern,
+                                    "snippet": text[:80]
+                                }) + "\n")
+                        except (FileNotFoundError, PermissionError) as e:
+                            logging.error(f"File error writing vaccine.log: {e}")
+                            # Critical error: escalate by raising to stop ingestion if needed
+                            raise
+                        except Exception as e:
+                            logging.error(f"Unexpected error writing vaccine.log: {e}")
+                            raise
+                        logging.warning(f"Vaccine blocked '{pat.pattern}' level '{lvl}': '{text[:50]}...'")
+                        return False
+        return True
+
+
+class LogChain:
+    def __init__(self, filename="logchain.log", maxlen=1000000):
+        self.filename = filename
+        self.lock = threading.RLock()
+        self.entries = deque(maxlen=maxlen)
+        self._load()
+        self.last_timestamp: Optional[str] = None  # Track last event timestamp loaded
+
+    def _load(self):
+        try:
+            with open(self.filename, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    self.entries.append(line)
+            logging.info(f"Loaded {len(self.entries)} audit entries from logchain")
+            # Parse last event timestamp for replay optimization
+            if self.entries:
+                last_event_line = self.entries[-1]
+                event_json, _ = last_event_line.split("||")
+                event_data = json.loads(event_json)
+                self.last_timestamp = event_data.get("timestamp")
+        except FileNotFoundError:
+            logging.info("No audit log found, starting fresh")
+            self.last_timestamp = None
+
+    def add(self, event: Dict[str, Any]) -> None:
+        event["nonce"] = uuid.uuid4().hex
+        event["timestamp"] = ts()
+        json_event = json.dumps(event, sort_keys=True, default=str)
+        with self.lock:
+            prev_hash = self.entries[-1].split("||")[-1] if self.entries else ""
+            new_hash = sha(prev_hash + json_event)
+            entry_line = json_event + "||" + new_hash
+            self.entries.append(entry_line)
+            try:
+                with open(self.filename, "a", encoding="utf-8") as f:
+                    f.write(entry_line + "\n")
+                    f.flush()
+            except IOError as e:
+                logging.error(f"Failed to write audit log: {e}")
+                raise
+
+    def verify(self) -> bool:
+        prev_hash = ""
+        for line in self.entries:
+            try:
+                event_json, h = line.split("||")
+            except ValueError:
+                logging.error("Malformed audit log line")
+                return False
+            if sha(prev_hash + event_json) != h:
+                logging.error("Audit log hash mismatch")
+                return False
+            prev_hash = h
+        return True
+
+
+class User:
+    def __init__(self, name: str, genesis: bool = False, species: str = "human"):
+        self.name = name
+        self.is_genesis = genesis
+        self.species = species
+        self.consent = True
+        self.karma = Decimal('0')
+        self.join_time = now_utc()
+        self.last_active = self.join_time
+        self.mint_count = 0
+        self.next_mint_threshold = Config.KARMA_MINT_THRESHOLD
+        self.root_coin_id: Optional[str] = None
+        self.coins_owned: List[str] = []
+        self.daily_actions: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
+        self._last_action_day: Optional[str] = today()
+        self._reaction_timestamps: deque = deque()
+        self.lock = threading.RLock()
+        self.initial_root_value: Optional[Decimal] = None
+
+    def add_karma(self, amount: Decimal):
+        # This method is deprecated; karma changes must go via event log to ensure consistency
+        raise NotImplementedError("Direct karma modification forbidden; use event logging")
+
+    def reset_daily_if_needed(self):
+        today_str = today()
+        with self.lock:
+            if self._last_action_day != today_str:
+                self.daily_actions.clear()
+                self._last_action_day = today_str
+                self._reaction_timestamps.clear()
+
+    def check_reaction_rate_limit(self) -> bool:
+        now_ts = now_utc().timestamp()
+        with self.lock:
+            while self._reaction_timestamps and now_ts - self._reaction_timestamps[0] > 60:
+                self._reaction_timestamps.popleft()
+            if len(self._reaction_timestamps) >= Config.MAX_REACTS_PER_MINUTE:
+                return False
+            self._reaction_timestamps.append(now_ts)
+            return True
+
+    def check_mint_rate_limit(self) -> bool:
+        self.reset_daily_if_needed()
+        with self.lock:
+            return self.daily_actions[today()].get("mint", 0) < Config.MAX_MINTS_PER_DAY
+
+    def apply_daily_karma_decay(self):
+        now_dt = now_utc()
+        inactive_days = (now_dt - self.last_active).days
+        if inactive_days > 7:
+            decay_factor = Config.DAILY_DECAY ** (inactive_days - 7)
+            with self.lock:
+                old_karma = self.karma
+                self.karma *= decay_factor
+                if old_karma != self.karma:
+                    logging.info(f"Applied karma decay to user {self.name}: {old_karma} -> {self.karma}")
+
+    def to_dict(self):
+        with self.lock:
+            return {
+                "name": self.name,
+                "is_genesis": self.is_genesis,
+                "species": self.species,
+                "consent": self.consent,
+                "karma": str(self.karma),
+                "join_time": self.join_time.isoformat(),
+                "last_active": self.last_active.isoformat(),
+                "mint_count": self.mint_count,
+                "next_mint_threshold": str(self.next_mint_threshold),
+                "root_coin_id": self.root_coin_id,
+                "coins_owned": self.coins_owned[:],
+                "daily_actions": {k: dict(v) for k, v in self.daily_actions.items()},
+                "_last_action_day": self._last_action_day,
+                "_reaction_timestamps": list(self._reaction_timestamps),
+                "initial_root_value": str(self.initial_root_value) if self.initial_root_value else None,
+            }
+
+    @classmethod
+    def from_dict(cls, data):
+        user = cls(data["name"], data.get("is_genesis", False), data.get("species", "human"))
+        user.consent = data.get("consent", True)
+        user.karma = Decimal(data.get("karma", '0'))
+        user.join_time = datetime.datetime.fromisoformat(data.get("join_time"))
+        user.last_active = datetime.datetime.fromisoformat(data.get("last_active"))
+        user.mint_count = data.get("mint_count", 0)
+        user.next_mint_threshold = Decimal(data.get("next_mint_threshold", Config.KARMA_MINT_THRESHOLD))
+        user.root_coin_id = data.get("root_coin_id")
+        user.coins_owned = data.get("coins_owned", [])
+        user.daily_actions = defaultdict(lambda: defaultdict(int), {k: defaultdict(int, v) for k, v in data.get("daily_actions", {}).items()})
+        user._last_action_day = data.get("_last_action_day", today())
+        user._reaction_timestamps = deque(data.get("_reaction_timestamps", []))
+        user.initial_root_value = Decimal(data.get("initial_root_value")) if data.get("initial_root_value") else None
+        return user
+
+
+class Coin:
+    def __init__(self, coin_id: str, creator: str, owner: str, value: Decimal,
+                 is_root: bool = False, fractional_of: Optional[str] = None,
+                 fractional_pct: Decimal = Decimal('0'), references: Optional[List[Dict]] = None,
+                 improvement: Optional[str] = None, genesis_creator: Optional[str] = None):
+        self.coin_id = coin_id
+        self.creator = creator
+        self.owner = owner
+        self.value = value
+        self.is_root = is_root
+        self.fractional_of = fractional_of
+        self.fractional_pct = fractional_pct
+        self.references = references or []
+        self.improvement = improvement or ""
+        self.ancestors: List[str] = []
+        self.reactions: List[Dict] = []
+        self.created_at = ts()
+        self.genesis_creator = genesis_creator or (creator if is_root else None)
+
+    def decrease_value(self, amount: Decimal):
+        if self.value < amount:
+            raise CoinDepletedError(f"Coin {self.coin_id} value depleted by {amount}")
+        self.value -= amount
+
+    def to_dict(self):
+        return {
+            "coin_id": self.coin_id,
+            "creator": self.creator,
+            "owner": self.owner,
+            "value": str(self.value),
+            "is_root": self.is_root,
+            "fractional_of": self.fractional_of,
+            "fractional_pct": str(self.fractional_pct),
+            "references": self.references,
+            "improvement": self.improvement,
+            "ancestors": self.ancestors[:],
+            "reactions": self.reactions[:],
+            "created_at": self.created_at,
+            "genesis_creator": self.genesis_creator,
+        }
+
+    @classmethod
+    def from_dict(cls, data):
+        coin = cls(
+            data["coin_id"], data["creator"], data["owner"], Decimal(data["value"]),
+            data.get("is_root", False), data.get("fractional_of"), Decimal(data.get("fractional_pct", '0')),
+            data.get("references"), data.get("improvement"), data.get("genesis_creator")
+        )
+        coin.ancestors = data.get("ancestors", [])
+        coin.reactions = data.get("reactions", [])
+        coin.created_at = data.get("created_at", ts())
+        return coin
+
+
+class EmojiMarket:
+    def __init__(self):
+        self.lock = threading.RLock()
+        self.market = {e: {"uses": Decimal('1'), "karma": Decimal(w), "weight": Decimal(w)} for e, w in Config.EMOJI_BASE.items()}
+
+    def update_weight(self, emoji: str, karma_delta: Decimal):
+        with self.lock:
+            em = self.market.setdefault(emoji, {"uses": Decimal('0'), "karma": Decimal('0'), "weight": Decimal('1')})
+            em["uses"] += 1
+            em["karma"] += karma_delta
+            alpha = Decimal('0.1')
+            em["weight"] = alpha * (em["karma"] / em["uses"]) + (Decimal('1') - alpha) * em["weight"]
+
+    def get_weight(self, emoji: str) -> Decimal:
+        with self.lock:
+            return self.market.get(emoji, {"weight": Decimal('1')})["weight"]
+
+    def to_dict(self):
+        with self.lock:
+            return {e: {k: str(v) if isinstance(v, Decimal) else v for k, v in val.items()} for e, val in self.market.items()}
+
+    @classmethod
+    def from_dict(cls, data):
+        em = cls()
+        with em.lock:
+            # Fix: convert all numeric fields to Decimal consistently
+            em.market = {e: {k: Decimal(v) for k, v in val.items()} for e, val in data.items()}
+        return em
+
+
+class HookManager:
+    def __init__(self):
+        self._hooks = defaultdict(list)
+        self.lock = threading.RLock()
+
+    def register_hook(self, event_name: str, callback: Callable):
+        with self.lock:
+            self._hooks[event_name].append(callback)
+            logging.info(f"Hook registered for event '{event_name}'")
+
+    def fire_hooks(self, event_name: str, *args, **kwargs):
+        with self.lock:
+            callbacks = list(self._hooks.get(event_name, []))
+        for cb in callbacks:
+            try:
+                cb(*args, **kwargs)
+            except Exception as e:
+                logging.error(f"Error in hook '{event_name}': {e}")
+
+
+class Proposal:
+    def __init__(self, proposal_id: str, creator: str, description: str, target: str, payload: dict):
+        self.proposal_id = proposal_id
+        self.creator = creator
+        self.description = description
+        self.target = target
+        self.payload = payload
+        self.created_at = ts()
+        self.votes = {}
+        self.status = "open"
+
+    def is_expired(self) -> bool:
+        created_dt = datetime.datetime.fromisoformat(self.created_at)
+        return (now_utc() - created_dt).total_seconds() > Config.PROPOSAL_VOTE_DURATION_HOURS * 3600
+
+    def tally_votes(self, users: Dict[str, User]) -> Dict[str, Decimal]:
+        species_count = defaultdict(set)
+        for uname in self.votes:
+            user = users.get(uname)
+            if user:
+                species_count[user.species].add(uname)
+
+        total_species = len(species_count)
+        if total_species == 0:
+            return {"yes": Decimal('0'), "no": Decimal('0'), "total": Decimal('0')}
+
+        species_weight = {s: Decimal('1') / Decimal(total_species) for s in species_count}
+        yes_weight = Decimal('0')
+        no_weight = Decimal('0')
+
+        for species, voters in species_count.items():
+            karma_yes = Decimal('0')
+            karma_no = Decimal('0')
+            total_karma = sum(users[v].karma for v in voters) or Decimal('1')
+
+            for v in voters:
+                vote = self.votes.get(v)
+                if vote == "yes":
+                    karma_yes += users[v].karma
+                elif vote == "no":
+                    karma_no += users[v].karma
+
+            yes_weight += species_weight[species] * (karma_yes / total_karma)
+            no_weight += species_weight[species] * (karma_no / total_karma)
+
+        total_votes = yes_weight + no_weight
+        return {"yes": yes_weight, "no": no_weight, "total": total_votes}
+
+    def is_approved(self, users: Dict[str, User]) -> bool:
+        tally = self.tally_votes(users)
+        if tally["total"] == 0:
+            return False
+        return tally["yes"] / tally["total"] >= Config.GOV_SUPERMAJORITY_THRESHOLD
+
+    def to_dict(self):
+        return {
+            "proposal_id": self.proposal_id,
+            "creator": self.creator,
+            "description": self.description,
+            "target": self.target,
+            "payload": self.payload,
+            "created_at": self.created_at,
+            "votes": self.votes.copy(),
+            "status": self.status,
+        }
+
+    @classmethod
+    def from_dict(cls, data):
+        proposal = cls(
+            data["proposal_id"], data["creator"], data["description"], data["target"], data["payload"]
+        )
+        proposal.created_at = data.get("created_at", ts())
+        proposal.votes = data.get("votes", {})
+        proposal.status = data.get("status", "open")
+        return proposal
+
+
+class RemixAgent:
+    def __init__(self, snapshot_file: str = "snapshot.json", logchain_file: str = "logchain.log"):
+        self.vaccine = Vaccine()
+        self.logchain = LogChain(filename=logchain_file)
+        self.users: Dict[str, User] = {}
+        self.coins: Dict[str, Coin] = {}
+        self.proposals: Dict[str, Proposal] = {}
+        self.treasury = Decimal('0')
+        self.treasury_active_fund = Decimal('0')
+        self.emoji_market = EmojiMarket()
+        self.hooks = HookManager()
+        self.lock = threading.RLock()
+        self.snapshot_file = snapshot_file
+        self._last_decay_day: Optional[str] = None
+        self._last_proposal_check: Optional[datetime.datetime] = None
+        self.marketplace_listings: Dict[str, Dict[str, Any]] = {}
+        self.load_state()
+
+    # Core internal ops (no validation):
+    def _do_add_user(self, name, is_genesis, species, karma, join_time, last_active,
+                     root_coin_id, coins_owned, initial_root_value, consent, root_coin_value):
+        user = User(name, is_genesis, species)
+        user.consent = consent
+        user.karma = karma
+        user.join_time = join_time
+        user.last_active = last_active
+        user.root_coin_id = root_coin_id
+        user.coins_owned = coins_owned
+        user.initial_root_value = initial_root_value
+        self.users[name] = user
+        # Add root coin
+        coin = Coin(root_coin_id, name, name, root_coin_value, True, genesis_creator=name)
+        self.coins[root_coin_id] = coin
+
+    def _do_mint_coin(self, user_name, new_coin_id, mint_value, new_coin_value,
+                      root_coin_id, genesis_creator, references,
+                      improvement, fractional_pct, ancestors, created_at):
+        user = self.users[user_name]
+        root_coin = self.coins[root_coin_id]
+        new_coin = Coin(
+            coin_id=new_coin_id,
+            creator=root_coin.creator,
+            owner=user_name,
+            value=new_coin_value,
+            is_root=False,
+            fractional_of=root_coin_id,
+            fractional_pct=fractional_pct,
+            references=references,
+            improvement=improvement,
+            genesis_creator=genesis_creator
+        )
+        new_coin.ancestors = ancestors
+        new_coin.created_at = created_at
+        self.coins[new_coin_id] = new_coin
+
+        # Deduct mint_value from root coin value
+        root_coin.value -= mint_value
+
+        # Treasury split
+        split_value = mint_value * Config.TREASURY_SHARE
+
+        # Add split_value back to genesis creator's root coin if possible
+        creator_user = self.users.get(genesis_creator)
+        if creator_user and creator_user.root_coin_id in self.coins:
+            creator_root_coin = self.coins[creator_user.root_coin_id]
+            creator_root_coin.value += split_value
+        else:
+            # Fallback: add to current root coin
+            root_coin.value += split_value
+
+        self.treasury += split_value
+
+        # Update user ownership and counters
+        user.coins_owned.append(new_coin_id)
+        user.mint_count += 1
+        # Halve the mint threshold or limit to minimum
+        user.next_mint_threshold = max(user.next_mint_threshold / 2, Config.FRACTIONAL_COIN_MIN_VALUE)
+        user.last_active = datetime.datetime.fromisoformat(created_at)
+
+    def _do_react_to_coin(self, reactor, coin_id, emoji, message,
+                          coin_value_reactor, coin_value_creator,
+                          coin_value_treasury, viral_decay, emoji_weight_used,
+                          network_bonus, decay_factor_used, timestamp):
+        reactor_user = self.users[reactor]
+        coin = self.coins[coin_id]
+        self.emoji_market.update_weight(emoji, coin_value_creator)
+        coin.reactions.append({"reactor": reactor, "emoji": emoji, "message": message, "timestamp": timestamp})
+        reactor_user.last_active = datetime.datetime.fromisoformat(timestamp)
+
+        # Add value to reactor's root coin
+        user_root_coin = self.coins.get(reactor_user.root_coin_id)
+        if user_root_coin:
+            user_root_coin.value += coin_value_reactor
+        else:
+            coin.value += coin_value_reactor
+
+        # Add value to genesis creator's root coin
+        creator_user = self.users.get(coin.genesis_creator)
+        if creator_user and creator_user.root_coin_id in self.coins:
+            creator_coin = self.coins[creator_user.root_coin_id]
+            creator_coin.value += coin_value_creator
+        else:
+            coin.value += coin_value_creator
+
+        # Treasury increment
+        self.treasury += coin_value_treasury
+
+    def _do_list_coin_for_sale(self, listing_id, seller, coin_id, price, created_at):
+        self.marketplace_listings[listing_id] = {
+            "listing_id": listing_id,
+            "seller": seller,
+            "coin_id": coin_id,
+            "price": price,
+            "status": "active",
+            "created_at": created_at,
+        }
+
+    def _do_buy_coin(self, buyer, seller, coin_id, price, fee_amount, listing_id, sold_at):
+        buyer_user = self.users[buyer]
+        seller_user = self.users[seller]
+        coin = self.coins[coin_id]
+        buyer_root_coin = self.coins[buyer_user.root_coin_id]
+        buyer_root_coin.value -= (price + fee_amount)
+        seller_root_coin = self.coins[seller_user.root_coin_id]
+        seller_root_coin.value += price
+        self.treasury += fee_amount
+        coin.owner = buyer
+        if coin_id in seller_user.coins_owned:
+            seller_user.coins_owned.remove(coin_id)
+        if coin_id not in buyer_user.coins_owned:
+            buyer_user.coins_owned.append(coin_id)
+        listing = self.marketplace_listings[listing_id]
+        listing["status"] = "sold"
+        listing["buyer"] = buyer
+        listing["sold_at"] = sold_at
+
+    def _do_transfer_coin(self, from_user, to_user, coin_id):
+        sender = self.users[from_user]
+        receiver = self.users[to_user]
+        coin = self.coins[coin_id]
+        coin.owner = to_user
+        if coin_id in sender.coins_owned:
+            sender.coins_owned.remove(coin_id)
+        if coin_id not in receiver.coins_owned:
+            receiver.coins_owned.append(coin_id)
+
+    def _do_create_proposal(self, proposal_id, creator, description, target, payload, created_at):
+        proposal = Proposal(proposal_id, creator, description, target, payload)
+        proposal.created_at = created_at
+        self.proposals[proposal_id] = proposal
+
+    def _do_vote_proposal(self, proposal_id, voter, vote):
+        proposal = self.proposals[proposal_id]
+        proposal.votes[voter] = vote
+
+    def _do_execute_proposal(self, proposal_id):
+        proposal = self.proposals[proposal_id]
+        proposal.status = "executed"
+        self._last_proposal_check = now_utc()
+
+        # Fully event-source Config updates if applicable
+        if proposal.target == "Config" and "key" in proposal.payload and "value" in proposal.payload:
+            key = proposal.payload["key"]
+            value = proposal.payload["value"]
+            config_update_event = {
+                "event": "UPDATE_CONFIG",
+                "key": key,
+                "value": str(value),
+                "proposal_id": proposal_id,
+                "timestamp": ts(),
+            }
+            self.logchain.add(config_update_event)
+            self._apply_event(config_update_event)
+
+    def _do_close_proposal(self, proposal_id, status):
+        proposal = self.proposals[proposal_id]
+        proposal.status = status
+        self._last_proposal_check = now_utc()
+
+    def _do_update_config(self, key, value):
+        Config.update_policy(key, value)
+        logging.info(f"Config updated: {key} = {value}")
+
+    def _do_daily_decay(self, treasury_allocation, timestamp):
+        self.treasury -= treasury_allocation
+        self.treasury_active_fund += treasury_allocation
+        self._last_decay_day = datetime.datetime.fromisoformat(timestamp).date().isoformat()
+
+    # Added method to adjust karma via event
+    def _do_adjust_karma(self, user_name: str, change: Decimal):
+        if user_name not in self.users:
+            raise InvalidInputError(f"User '{user_name}' not found for karma adjustment")
+        user = self.users[user_name]
+        with user.lock:
+            user.karma += change
+            if user.karma < 0:
+                user.karma = Decimal('0')
+
+    # Public API with strict validate → log → apply event pattern:
+
+    @acquire_agent_lock
+    def add_user(self, name: str, genesis: bool = False, species: str = "human") -> User:
+        if not is_valid_username(name):
+            raise InvalidInputError(f"Invalid username format: '{name}'")
+        if name in self.users:
+            raise UserExistsError(f"User '{name}' exists")
+
+        root_value = Config.GENESIS_COIN_INITIAL_VALUE if genesis else Config.STANDARD_COIN_INITIAL_VALUE
+        coin_id = uuid.uuid4().hex
+        event = {
+            "event": "ADD_USER",
+            "user": name,
+            "genesis": genesis,
+            "species": species,
+            "karma": "0",
+            "coin_id": coin_id,
+            "coins_owned": [],
+            "initial_root_value": str(root_value),
+            "consent": True,
+            "root_value": str(root_value),
+            "timestamp": ts(),
+        }
+        self.logchain.add(event)
+        self._apply_event(event)
+        self.hooks.fire_hooks("user_added", user=self.users[name])
+        logging.info(f"User added: {name}")
+        return self.users[name]
+
+    @acquire_agent_lock
+    def mint_fractional_post(self, user_name: str, improvement: str, references: List[Dict], fraction: Optional[Decimal] = None) -> str:
+        if user_name not in self.users:
+            raise InvalidInputError(f"User '{user_name}' not found")
+        user = self.users[user_name]
+
+        if not user.check_mint_rate_limit():
+            raise RateLimitError(f"User '{user_name}' exceeded mint limit")
+
+        if len(improvement) < Config.MIN_IMPROVEMENT_LEN:
+            raise ImprovementRequiredError("Improvement description too short")
+
+        root_coin = self.coins.get(user.root_coin_id)
+        if not root_coin or root_coin.value < Config.FRACTIONAL_COIN_MIN_VALUE:
+            raise InsufficientFundsError("Insufficient root coin value to mint")
+
+        # Handle fractional amount
+        if fraction is None:
+            fraction = Config.MAX_FRACTION_START
+        else:
+            fraction = Decimal(str(fraction))
+        if fraction <= 0 or fraction > 1:
+            raise InvalidInputError("Invalid fractional percentage")
+        mint_value = root_coin.value * fraction
+        if mint_value < Config.FRACTIONAL_COIN_MIN_VALUE and not user.is_genesis:
+            raise InsufficientFundsError("Minted value below minimum threshold")
+
+        required_karma = (mint_value).quantize(Decimal('1'))
+        if not user.is_genesis and user.karma < required_karma:
+            raise KarmaError("Not enough karma to mint")
+
+        new_coin_id = uuid.uuid4().hex
+
+        event = {
+            "event": "MINT",
+            "user": user_name,
+            "coin": new_coin_id,
+            "val": str(mint_value),
+            "root_coin_id": user.root_coin_id,
+            "genesis_creator": root_coin.genesis_creator,
+            "references": references,
+            "improvement": improvement,
+            "fraction_percent": str(fraction),
+            "ancestors": root_coin.ancestors + [root_coin.coin_id],
+            "timestamp": ts(),
+        }
+        self.logchain.add(event)
+        self._apply_event(event)
+        self.hooks.fire_hooks("coin_minted", user=user, coin_id=new_coin_id)
+        logging.info(f"User {user_name} minted coin {new_coin_id}")
+
+        # Deduct karma cost for minting via event
+        if not user.is_genesis:
+            deduction = -(required_karma / Decimal('10'))
+            karma_event = {
+                "event": "ADJUST_KARMA",
+                "user": user_name,
+                "change": str(deduction),
+                "timestamp": ts(),
+            }
+            self.logchain.add(karma_event)
+            self._apply_event(karma_event)
+
+        # Update daily mint count safely after event applied
+        user.daily_actions[today()]["mint"] += 1
+
+        return new_coin_id
+
+    @acquire_agent_lock
+    def react_to_coin(self, reactor: str, coin_id: str, emoji: str, message: Optional[str] = None):
+        if reactor not in self.users:
+            raise InvalidInputError(f"Reactor '{reactor}' not found")
+        if coin_id not in self.coins:
+            raise InvalidInputError(f"Coin '{coin_id}' not found")
+        if not is_valid_emoji(emoji):
+            raise EmojiRequiredError(f"Emoji '{emoji}' not supported")
+
+        reactor_user = self.users[reactor]
+        coin = self.coins[coin_id]
+
+        # Prevent reacting to own coin or genesis coin they own
+        if reactor == coin.owner or reactor == coin.genesis_creator:
+            raise InvalidInputError("Cannot react to your own coin")
+
+        if not reactor_user.check_reaction_rate_limit():
+            raise RateLimitError("Reaction rate limit exceeded")
+
+        # Require karma for non-genesis users to react
+        root_coin = self.coins[reactor_user.root_coin_id]
+        required_karma = (root_coin.value * Decimal('0.02')).quantize(Decimal('1'))
+        if not reactor_user.is_genesis and reactor_user.karma < required_karma:
+            raise KarmaError("Not enough karma to react")
+
+        coin_value_reactor = Decimal('1')
+        coin_value_creator = Decimal('1')
+        coin_value_treasury = Decimal('1')
+
+        event = {
+            "event": "REACT",
+            "reactor": reactor,
+            "coin": coin_id,
+            "emoji": emoji,
+            "message": message or "",
+            "coin_value_reactor": str(coin_value_reactor),
+            "coin_value_creator": str(coin_value_creator),
+            "coin_value_treasury": str(coin_value_treasury),
+            "viral_decay": str(Config.DAILY_DECAY),
+            "emoji_weight_used": str(self.emoji_market.get_weight(emoji)),
+            "network_bonus": "1",
+            "decay_factor_used": "1",
+            "timestamp": ts(),
+        }
+        self.logchain.add(event)
+        self._apply_event(event)
+        self.hooks.fire_hooks("coin_reacted", reactor=reactor, coin_id=coin_id, emoji=emoji)
+        logging.info(f"User {reactor} reacted to coin {coin_id} with {emoji}")
+
+        # Deduct karma cost for reacting via event
+        if not reactor_user.is_genesis:
+            deduction = -(required_karma / Decimal('20'))
+            karma_event = {
+                "event": "ADJUST_KARMA",
+                "user": reactor,
+                "change": str(deduction),
+                "timestamp": ts(),
+            }
+            self.logchain.add(karma_event)
+            self._apply_event(karma_event)
+
+    @acquire_agent_lock
+    def list_coin_for_sale(self, seller: str, coin_id: str, price: Decimal) -> str:
+        if seller not in self.users:
+            raise InvalidInputError(f"Seller '{seller}' not found")
+        if coin_id not in self.coins:
+            raise InvalidInputError(f"Coin '{coin_id}' not found")
+        coin = self.coins[coin_id]
+        if coin.owner != seller:
+            raise TradeError("Seller does not own the coin")
+        listing_id = uuid.uuid4().hex
+        event = {
+            "event": "LIST_FOR_SALE",
+            "listing_id": listing_id,
+            "seller": seller,
+            "coin_id": coin_id,
+            "price": str(price),
+            "status": "active",
+            "timestamp": ts(),
+        }
+        self.logchain.add(event)
+        self._apply_event(event)
+        self.hooks.fire_hooks("coin_listed", seller=seller, coin_id=coin_id, price=price)
+        logging.info(f"User {seller} listed coin {coin_id} for sale at {price}")
+        return listing_id
+
+    @acquire_agent_lock
+    def buy_coin(self, buyer: str, listing_id: str):
+        if buyer not in self.users:
+            raise InvalidInputError(f"Buyer '{buyer}' not found")
+        if listing_id not in self.marketplace_listings:
+            raise InvalidInputError(f"Listing '{listing_id}' not found")
+        listing = self.marketplace_listings[listing_id]
+        if listing["status"] != "active":
+            raise TradeError("Listing not active")
+        seller = listing["seller"]
+        coin_id = listing["coin_id"]
+        price = Decimal(listing["price"])
+        fee = price * Config.MARKET_FEE
+
+        buyer_user = self.users[buyer]
+        seller_user = self.users[seller]
+        buyer_root_coin = self.coins.get(buyer_user.root_coin_id)
+        if not buyer_root_coin or buyer_root_coin.value < (price + fee):
+            raise InsufficientFundsError("Buyer has insufficient funds")
+
+        event = {
+            "event": "BUY_COIN",
+            "buyer": buyer,
+            "seller": seller,
+            "coin_id": coin_id,
+            "price": str(price),
+            "fee_amount": str(fee),
+            "listing_id": listing_id,
+            "sold_at": ts(),
+        }
+        self.logchain.add(event)
+        self._apply_event(event)
+        self.hooks.fire_hooks("coin_sold", buyer=buyer, seller=seller, coin_id=coin_id, price=price)
+        logging.info(f"User {buyer} bought coin {coin_id} from {seller} for {price}")
+
+    @acquire_agent_lock
+    def transfer_coin(self, from_user: str, to_user: str, coin_id: str):
+        if from_user not in self.users or to_user not in self.users:
+            raise InvalidInputError("User(s) not found")
+        coin = self.coins.get(coin_id)
+        if not coin or coin.owner != from_user:
+            raise TradeError("Sender does not own the coin")
+        event = {
+            "event": "TRANSFER_COIN",
+            "from_user": from_user,
+            "to_user": to_user,
+            "coin_id": coin_id,
+            "timestamp": ts(),
+        }
+        self.logchain.add(event)
+        self._apply_event(event)
+        self.hooks.fire_hooks("coin_transferred", from_user=from_user, to_user=to_user, coin_id=coin_id)
+        logging.info(f"Transferred coin {coin_id} from {from_user} to {to_user}")
+
+    @acquire_agent_lock
+    def create_proposal(self, creator: str, description: str, target: str, payload: dict) -> str:
+        if creator not in self.users:
+            raise InvalidInputError(f"Creator '{creator}' not found")
+        proposal_id = uuid.uuid4().hex
+        event = {
+            "event": "CREATE_PROPOSAL",
+            "proposal_id": proposal_id,
+            "creator": creator,
+            "description": description,
+            "target": target,
+            "payload": payload,
+            "timestamp": ts(),
+        }
+        self.logchain.add(event)
+        self._apply_event(event)
+        self.hooks.fire_hooks("proposal_created", proposal_id=proposal_id)
+        logging.info(f"Proposal created by {creator} with id {proposal_id}")
+        return proposal_id
+
+    @acquire_agent_lock
+    def vote_proposal(self, proposal_id: str, voter: str, vote: str):
+        if voter not in self.users:
+            raise InvalidInputError(f"Voter '{voter}' not found")
+        if proposal_id not in self.proposals:
+            raise InvalidInputError(f"Proposal '{proposal_id}' not found")
+        if vote not in ("yes", "no"):
+            raise VoteError("Invalid vote value")
+        proposal = self.proposals[proposal_id]
+        if proposal.is_expired() or proposal.status != "open":
+            raise VoteError("Proposal not open for voting")
+
+        event = {
+            "event": "VOTE_PROPOSAL",
+            "proposal_id": proposal_id,
+            "voter": voter,
+            "vote": vote,
+            "timestamp": ts(),
+        }
+        self.logchain.add(event)
+        self._apply_event(event)
+        self.hooks.fire_hooks("proposal_voted", proposal_id=proposal_id, voter=voter, vote=vote)
+        logging.info(f"User {voter} voted '{vote}' on proposal {proposal_id}")
+
+    @acquire_agent_lock
+    def execute_proposal(self, proposal_id: str):
+        if proposal_id not in self.proposals:
+            raise InvalidInputError(f"Proposal '{proposal_id}' not found")
+        proposal = self.proposals[proposal_id]
+        if proposal.status != "open":
+            raise VoteError("Proposal not open for execution")
+        if not proposal.is_approved(self.users):
+            raise VoteError("Proposal not approved for execution")
+
+        event = {
+            "event": "EXECUTE_PROPOSAL",
+            "proposal_id": proposal_id,
+            "timestamp": ts(),
+        }
+        self.logchain.add(event)
+        self._apply_event(event)
+        self.hooks.fire_hooks("proposal_executed", proposal_id=proposal_id)
+        logging.info(f"Proposal {proposal_id} executed")
+
+    @acquire_agent_lock
+    def close_proposal(self, proposal_id: str, status: str):
+        if proposal_id not in self.proposals:
+            raise InvalidInputError(f"Proposal '{proposal_id}' not found")
+        if status not in ("closed", "rejected", "executed"):
+            raise InvalidInputError(f"Invalid proposal close status: {status}")
+        event = {
+            "event": "CLOSE_PROPOSAL",
+            "proposal_id": proposal_id,
+            "status": status,
+            "timestamp": ts(),
+        }
+        self.logchain.add(event)
+        self._apply_event(event)
+        self.hooks.fire_hooks("proposal_closed", proposal_id=proposal_id, status=status)
+        logging.info(f"Proposal {proposal_id} closed with status {status}")
+
+    @acquire_agent_lock
+    def apply_daily_decay(self):
+        today_str = today()
+        if self._last_decay_day == today_str:
+            return  # Already applied today
+
+        # Compute decay amount (e.g. 1% of treasury)
+        treasury_allocation = self.treasury * (Decimal('1') - Config.DAILY_DECAY)
+        if treasury_allocation <= 0:
+            return
+
+        event = {
+            "event": "DAILY_DECAY",
+            "treasury_allocation": str(treasury_allocation),
+            "timestamp": ts(),
+        }
+        self.logchain.add(event)
+        self._apply_event(event)
+        self.hooks.fire_hooks("daily_decay", amount=treasury_allocation)
+        logging.info(f"Daily decay applied: {treasury_allocation}")
+
+    def _apply_event(self, event: Dict[str, Any]):
+        et = event["event"]
+        timestamp = event.get("timestamp", ts())
+        try:
+            if et == "ADD_USER":
+                self._do_add_user(
+                    name=event["user"],
+                    is_genesis=event.get("genesis", False),
+                    species=event.get("species", "human"),
+                    karma=Decimal(event.get("karma", '0')),
+                    join_time=datetime.datetime.fromisoformat(timestamp),
+                    last_active=datetime.datetime.fromisoformat(timestamp),
+                    root_coin_id=event["coin_id"],
+                    coins_owned=event.get("coins_owned", []),
+                    initial_root_value=Decimal(event["initial_root_value"]),
+                    consent=event.get("consent", True),
+                    root_coin_value=Decimal(event["root_value"])
+                )
+            elif et == "MINT":
+                self._do_mint_coin(
+                    user_name=event["user"],
+                    new_coin_id=event["coin"],
+                    mint_value=Decimal(event["val"]),
+                    new_coin_value=Decimal(event.get("new_coin_value", '0')) or Decimal(event["val"]),
+                    root_coin_id=event["root_coin_id"],
+                    genesis_creator=event.get("genesis_creator", ""),
+                    references=event.get("references", []),
+                    improvement=event.get("improvement", ""),
+                    fractional_pct=Decimal(event.get("fraction_percent", '0')),
+                    ancestors=event.get("ancestors", []),
+                    created_at=timestamp
+                )
+            elif et == "REACT":
+                self._do_react_to_coin(
+                    reactor=event["reactor"],
+                    coin_id=event["coin"],
+                    emoji=event["emoji"],
+                    message=event.get("message"),
+                    coin_value_reactor=Decimal(event["coin_value_reactor"]),
+                    coin_value_creator=Decimal(event["coin_value_creator"]),
+                    coin_value_treasury=Decimal(event["coin_value_treasury"]),
+                    viral_decay=Decimal(event.get("viral_decay", '1')),
+                    emoji_weight_used=Decimal(event.get("emoji_weight_used", '1')),
+                    network_bonus=Decimal(event.get("network_bonus", '1')),
+                    decay_factor_used=Decimal(event.get("decay_factor_used", '1')),
+                    timestamp=timestamp
+                )
+            elif et == "LIST_FOR_SALE":
+                self._do_list_coin_for_sale(
+                    listing_id=event["listing_id"],
+                    seller=event["seller"],
+                    coin_id=event["coin_id"],
+                    price=Decimal(event["price"]),
+                    created_at=timestamp
+                )
+            elif et == "BUY_COIN":
+                self._do_buy_coin(
+                    buyer=event["buyer"],
+                    seller=event["seller"],
+                    coin_id=event["coin_id"],
+                    price=Decimal(event["price"]),
+                    fee_amount=Decimal(event["fee_amount"]),
+                    listing_id=event["listing_id"],
+                    sold_at=event.get("sold_at", timestamp)
+                )
+            elif et == "TRANSFER_COIN":
+                self._do_transfer_coin(
+                    from_user=event["from_user"],
+                    to_user=event["to_user"],
+                    coin_id=event["coin_id"]
+                )
+            elif et == "CREATE_PROPOSAL":
+                self._do_create_proposal(
+                    proposal_id=event["proposal_id"],
+                    creator=event["creator"],
+                    description=event["description"],
+                    target=event["target"],
+                    payload=event["payload"],
+                    created_at=timestamp
+                )
+            elif et == "VOTE_PROPOSAL":
+                self._do_vote_proposal(
+                    proposal_id=event["proposal_id"],
+                    voter=event["voter"],
+                    vote=event["vote"]
+                )
+            elif et == "EXECUTE_PROPOSAL":
+                self._do_execute_proposal(
+                    proposal_id=event["proposal_id"]
+                )
+            elif et == "CLOSE_PROPOSAL":
+                self._do_close_proposal(
+                    proposal_id=event["proposal_id"],
+                    status=event["status"]
+                )
+            elif et == "UPDATE_CONFIG":
+                self._do_update_config(
+                    key=event["key"],
+                    value=Decimal(event["value"])
+                )
+            elif et == "DAILY_DECAY":
+                self._do_daily_decay(
+                    treasury_allocation=Decimal(event["treasury_allocation"]),
+                    timestamp=timestamp
+                )
+            elif et == "ADJUST_KARMA":
+                self._do_adjust_karma(
+                    user_name=event["user"],
+                    change=Decimal(event["change"])
+                )
+            else:
+                logging.warning(f"Unknown event type '{et}' ignored.")
+        except Exception as e:
+            logging.error(f"Error applying event {et} during replay: {e}. Event: {json.dumps(event)}")
+
+    def save_snapshot(self):
+        try:
+            data = {
+                "users": {k: v.to_dict() for k, v in self.users.items()},
+                "coins": {k: v.to_dict() for k, v in self.coins.items()},
+                "proposals": {k: v.to_dict() for k, v in self.proposals.items()},
+                "treasury": str(self.treasury),
+                "treasury_active_fund": str(self.treasury_active_fund),
+                "emoji_market": self.emoji_market.to_dict(),
+                "marketplace_listings": self.marketplace_listings,
+                "_last_decay_day": self._last_decay_day,
+                "_last_proposal_check": self._last_proposal_check.isoformat() if self._last_proposal_check else None,
+            }
+            with open(self.snapshot_file, "w", encoding="utf-8") as f:
+                json.dump(data, f)
+            logging.info(f"Snapshot saved to {self.snapshot_file}")
+        except Exception as e:
+            logging.error(f"Failed to save snapshot: {e}")
+
+    def load_state(self):
+        # Load snapshot if exists
+        try:
+            with open(self.snapshot_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            self.users = {k: User.from_dict(v) for k, v in data.get("users", {}).items()}
+            self.coins = {k: Coin.from_dict(v) for k, v in data.get("coins", {}).items()}
+            self.proposals = {k: Proposal.from_dict(v) for k, v in data.get("proposals", {}).items()}
+            self.treasury = Decimal(data.get("treasury", '0'))
+            self.treasury_active_fund = Decimal(data.get("treasury_active_fund", '0'))
+            self.emoji_market = EmojiMarket.from_dict(data.get("emoji_market", {}))
+            self.marketplace_listings = data.get("marketplace_listings", {})
+            self._last_decay_day = data.get("_last_decay_day")
+            last_proposal_check_str = data.get("_last_proposal_check")
+            self._last_proposal_check = datetime.datetime.fromisoformat(last_proposal_check_str) if last_proposal_check_str else None
+            logging.info(f"Snapshot loaded from {self.snapshot_file}")
+        except FileNotFoundError:
+            logging.info("No snapshot file found, starting fresh")
+        except Exception as e:
+            logging.error(f"Failed to load snapshot: {e}")
+
+        # Replay events after snapshot's last event timestamp for full catch-up
+        replay_after = self.logchain.last_timestamp
+        if replay_after:
+            with self.logchain.lock:
+                for line in self.logchain.entries:
+                    event_json, _ = line.split("||")
+                    event_data = json.loads(event_json)
+                    event_ts = event_data.get("timestamp")
+                    if event_ts and event_ts > replay_after:
+                        self._apply_event(event_data)
+
+
+
+
+
+
+
+
+# -------------------------------------------------------------------------------
+# The Emoji Engine — MetaKarma Hub Ultimate Mega-Agent v5.16+
+#
+# Copyright (c) 2023-2026 mimi, taha & supernova
+#
+# Powered by humans & machines hand in hand — remixing creativity, karma & cosmos.
+# Special shoutout to Gemini, Google Gemini, OpenAI GPT & Anthropic Cloud
+# — the stellar trio that helped spark this cosmic project 🚀✨
+#
+# MIT License — remix, fork, evolve, connect your universe.
+# -------------------------------------------------------------------------------
+
+"""
+Welcome to MetaKarma Hub! 🌌✨🎮
+
+The ultimate legoblock core for building boundless multiverses — each a remix republic shaped by you.
+
+🧩 Modular, scalable, immutable, and open.
+
+Every citizen starts with one root coin — the spark of creation 🔥,
+whether human or decentralized AI agent, each with independent karma potential.
+
+Mint fractional coins as legos to remix, improve, and innovate endlessly.
+Trade fractional ownership on a marketplace to monetize your remix republic.
+
+Reactions flow coin value through cosmic veins,
+shared fairly between original creators, reactors (interactors), and treasury — communal light 💎.
+
+Karma is a separate reputation currency unlocking minting and voting power.
+
+Governance is truly multi-species: humans, AI, others,
+each voice equal by default,
+with voting weights dynamically normalized:
+- Two species: 50/50 split
+- Three or more: evenly split (~33% each)
+Super-majority approval threshold is set to 70% to encourage meaningful consensus.
+
+Value exchange flows through emojis, amplifying social influence and economic dynamics without politics.
+
+The Vaccine adapts, blocking evolving threats 🛡️ with governance-overseen pattern updates.
+
+Hooks plug into Discord, Unreal, AI agents — you name it. Play on.
+
+No politics, no divisiveness. Pure remix magic.
+
+Join us. Remix reality. Build universes.
+
+─────────────────────────────────────────────
+"""
+
+import sys
+import json
+import uuid
+import datetime
+import hashlib
+import threading
+import base64
+import re
+import logging
+import time
+from collections import defaultdict, deque
+from decimal import Decimal, getcontext, InvalidOperation
+from typing import Optional, Dict, List, Any, Callable
+
+getcontext().prec = 28
+logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(levelname)s: %(message)s')
+
+
+def acquire_agent_lock(func):
+    def wrapper(self, *args, **kwargs):
+        with self.lock:
+            return func(self, *args, **kwargs)
+    return wrapper
+
+
+class Config:
+    _lock = threading.RLock()
+    VERSION = "EmojiEngine UltimateMegaAgent v5.16+"
+
+    GENESIS_COIN_INITIAL_VALUE = Decimal('1000000')  # 1 million
+    STANDARD_COIN_INITIAL_VALUE = Decimal('1000')
+    DAILY_DECAY = Decimal('0.99')
+    TREASURY_SHARE = Decimal('0.3333333333')  # Equal 33% splits
+    MARKET_FEE = Decimal('0.01')
+    MAX_MINTS_PER_DAY = 5
+    MAX_REACTS_PER_MINUTE = 30
+    MIN_IMPROVEMENT_LEN = 15
+    GOV_SUPERMAJORITY_THRESHOLD = Decimal('0.70')
+    PROPOSAL_VOTE_DURATION_HOURS = 72
+    KARMA_MINT_THRESHOLD = Decimal('5000')
+    FRACTIONAL_COIN_MIN_VALUE = Decimal('10')
+    MAX_FRACTION_START = Decimal('0.05')  # Mint 5% of root coin by default
+
+    VAX_PATTERNS = {
+        "critical": [r"\bhack\b", r"\bmalware\b", r"\bransomware\b", r"\bbackdoor\b", r"\bexploit\b"],
+        "high": [r"\bphish\b", r"\bddos\b", r"\bspyware\b", r"\brootkit\b", r"\bkeylogger\b", r"\bbotnet\b"],
+        "medium": [r"\bpropaganda\b", r"\bsurveillance\b", r"\bmanipulate\b"],
+        "low": [r"\bspam\b", r"\bscam\b", r"\bviagra\b"],
+    }
+
+    EMOJI_BASE = {
+        "🤗": Decimal('7'), "🥰": Decimal('5'), "😍": Decimal('5'), "🔥": Decimal('4'),
+        "🫶": Decimal('4'), "🌸": Decimal('3'), "💯": Decimal('3'), "🎉": Decimal('3'),
+        "✨": Decimal('3'), "🙌": Decimal('3'), "🎨": Decimal('3'), "💬": Decimal('3'),
+        "👍": Decimal('2'), "🚀": Decimal('2.5'), "💎": Decimal('6'), "🌟": Decimal('3'),
+        "⚡": Decimal('2.5'), "👀": Decimal('0.5'), "🥲": Decimal('0.2'), "🤷‍♂️": Decimal('2'),
+        "😅": Decimal('2'), "🔀": Decimal('4'), "🆕": Decimal('3'), "🔗": Decimal('2'), "❤️": Decimal('4'),
+    }
+
+    ALLOWED_POLICY_KEYS = {
+        "MARKET_FEE": lambda v: Decimal(v) >= 0 and Decimal(v) <= Decimal('0.10'),
+        "DAILY_DECAY": lambda v: Decimal('0.90') <= Decimal(v) <= Decimal('1'),
+        "KARMA_MINT_THRESHOLD": lambda v: Decimal(v) >= 0,
+    }
+
+    @classmethod
+    def update_policy(cls, key: str, value: Any):
+        with cls._lock:
+            if key not in cls.ALLOWED_POLICY_KEYS:
+                raise InvalidInputError(f"Policy key '{key}' not allowed")
+            if not cls.ALLOWED_POLICY_KEYS[key](value):
+                raise InvalidInputError(f"Policy value '{value}' invalid for key '{key}'")
+            setattr(cls, key, Decimal(value))
+            logging.info(f"Policy '{key}' updated to {value}")
+
+
+def now_utc() -> datetime.datetime:
+    return datetime.datetime.now(datetime.timezone.utc)
+
+
+def ts() -> str:
+    return now_utc().isoformat()
+
+
+def sha(data: str) -> str:
+    return base64.b64encode(hashlib.sha256(data.encode('utf-8')).digest()).decode()
+
+
+def today() -> str:
+    return now_utc().date().isoformat()
+
+
+def safe_divide(a: Decimal, b: Decimal, default=Decimal('0')) -> Decimal:
+    try:
+        return a / b if b != 0 else default
+    except (InvalidOperation, ZeroDivisionError):
+        return default
+
+
+def is_valid_username(name: str) -> bool:
+    return bool(re.fullmatch(r'[A-Za-z0-9_]{3,30}', name))
+
+
+def is_valid_emoji(emoji: str) -> bool:
+    return emoji in Config.EMOJI_BASE
+
+
+# Exception Classes
+class UserExistsError(Exception): pass
+class ConsentError(Exception): pass
+class KarmaError(Exception): pass
+class BlockedContentError(Exception): pass
+class CoinDepletedError(Exception): pass
+class RateLimitError(Exception): pass
+class ImprovementRequiredError(Exception): pass
+class EmojiRequiredError(Exception): pass
+class TradeError(Exception): pass
+class VoteError(Exception): pass
+class InvalidInputError(Exception): pass
+class RootCoinMissingError(InvalidInputError): pass
+class InsufficientFundsError(Exception): pass
+class InvalidPercentageError(Exception): pass
+
+
+class Vaccine:
+    def __init__(self):
+        self.lock = threading.RLock()
+        self.block_counts = defaultdict(int)
+        self.compiled_patterns = {}
+        for lvl, pats in Config.VAX_PATTERNS.items():
+            compiled = []
+            for p in pats:
+                try:
+                    compiled.append(re.compile(p))
+                except re.error as e:
+                    logging.error(f"Invalid regex '{p}' level '{lvl}': {e}")
+            self.compiled_patterns[lvl] = compiled
+
+    def scan(self, text: str) -> bool:
+        if not isinstance(text, str):
+            return True
+        t = text.lower()
+        with self.lock:
+            for lvl, pats in self.compiled_patterns.items():
+                for pat in pats:
+                    if pat.search(t):
+                        self.block_counts[lvl] += 1
+                        try:
+                            with open("vaccine.log", "a", encoding="utf-8") as f:
+                                f.write(json.dumps({
+                                    "ts": ts(),
+                                    "nonce": uuid.uuid4().hex,
+                                    "level": lvl,
+                                    "pattern": pat.pattern,
+                                    "snippet": text[:80]
+                                }) + "\n")
+                        except (FileNotFoundError, PermissionError) as e:
+                            logging.error(f"File error writing vaccine.log: {e}")
+                        except Exception as e:
+                            logging.error(f"Unexpected error writing vaccine.log: {e}")
+                        logging.warning(f"Vaccine blocked '{pat.pattern}' level '{lvl}': '{text[:50]}...'")
+                        return False
+        return True
+
+
+class LogChain:
+    def __init__(self, filename="logchain.log", maxlen=1000000):
+        self.filename = filename
+        self.lock = threading.RLock()
+        self.entries = deque(maxlen=maxlen)
+        self._load()
+        self.last_timestamp: Optional[str] = None  # Track last event timestamp loaded
+
+    def _load(self):
+        try:
+            with open(self.filename, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    self.entries.append(line)
+            logging.info(f"Loaded {len(self.entries)} audit entries from logchain")
+            # Parse last event timestamp for replay optimization
+            if self.entries:
+                last_event_line = self.entries[-1]
+                event_json, _ = last_event_line.split("||")
+                event_data = json.loads(event_json)
+                self.last_timestamp = event_data.get("timestamp")
+        except FileNotFoundError:
+            logging.info("No audit log found, starting fresh")
+            self.last_timestamp = None
+
+    def add(self, event: Dict[str, Any]) -> None:
+        event["nonce"] = uuid.uuid4().hex
+        event["timestamp"] = ts()
+        json_event = json.dumps(event, sort_keys=True, default=str)
+        with self.lock:
+            prev_hash = self.entries[-1].split("||")[-1] if self.entries else ""
+            new_hash = sha(prev_hash + json_event)
+            entry_line = json_event + "||" + new_hash
+            self.entries.append(entry_line)
+            try:
+                with open(self.filename, "a", encoding="utf-8") as f:
+                    f.write(entry_line + "\n")
+                    f.flush()
+            except IOError as e:
+                logging.error(f"Failed to write audit log: {e}")
+
+    def verify(self) -> bool:
+        prev_hash = ""
+        for line in self.entries:
+            try:
+                event_json, h = line.split("||")
+            except ValueError:
+                logging.error("Malformed audit log line")
+                return False
+            if sha(prev_hash + event_json) != h:
+                logging.error("Audit log hash mismatch")
+                return False
+            prev_hash = h
+        return True
+
+
+class User:
+    def __init__(self, name: str, genesis: bool = False, species: str = "human"):
+        self.name = name
+        self.is_genesis = genesis
+        self.species = species
+        self.consent = True
+        self.karma = Decimal('0')
+        self.join_time = now_utc()
+        self.last_active = self.join_time
+        self.mint_count = 0
+        self.next_mint_threshold = Config.KARMA_MINT_THRESHOLD
+        self.root_coin_id: Optional[str] = None
+        self.coins_owned: List[str] = []
+        self.daily_actions: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
+        self._last_action_day: Optional[str] = today()
+        self._reaction_timestamps: deque = deque()
+        self.lock = threading.RLock()
+        self.initial_root_value: Optional[Decimal] = None
+
+    def add_karma(self, amount: Decimal):
+        with self.lock:
+            self.karma += amount
+
+    def reset_daily_if_needed(self):
+        today_str = today()
+        with self.lock:
+            if self._last_action_day != today_str:
+                self.daily_actions.clear()
+                self._last_action_day = today_str
+                self._reaction_timestamps.clear()
+
+    def check_reaction_rate_limit(self) -> bool:
+        now_ts = now_utc().timestamp()
+        with self.lock:
+            while self._reaction_timestamps and now_ts - self._reaction_timestamps[0] > 60:
+                self._reaction_timestamps.popleft()
+            if len(self._reaction_timestamps) >= Config.MAX_REACTS_PER_MINUTE:
+                return False
+            self._reaction_timestamps.append(now_ts)
+            return True
+
+    def check_mint_rate_limit(self) -> bool:
+        self.reset_daily_if_needed()
+        with self.lock:
+            return self.daily_actions[today()].get("mint", 0) < Config.MAX_MINTS_PER_DAY
+
+    def apply_daily_karma_decay(self):
+        now_dt = now_utc()
+        inactive_days = (now_dt - self.last_active).days
+        if inactive_days > 7:
+            decay_factor = Config.DAILY_DECAY ** (inactive_days - 7)
+            with self.lock:
+                old_karma = self.karma
+                self.karma *= decay_factor
+                if old_karma != self.karma:
+                    logging.info(f"Applied karma decay to user {self.name}: {old_karma} -> {self.karma}")
+
+    def to_dict(self):
+        with self.lock:
+            return {
+                "name": self.name,
+                "is_genesis": self.is_genesis,
+                "species": self.species,
+                "consent": self.consent,
+                "karma": str(self.karma),
+                "join_time": self.join_time.isoformat(),
+                "last_active": self.last_active.isoformat(),
+                "mint_count": self.mint_count,
+                "next_mint_threshold": str(self.next_mint_threshold),
+                "root_coin_id": self.root_coin_id,
+                "coins_owned": self.coins_owned[:],
+                "daily_actions": {k: dict(v) for k, v in self.daily_actions.items()},
+                "_last_action_day": self._last_action_day,
+                "_reaction_timestamps": list(self._reaction_timestamps),
+                "initial_root_value": str(self.initial_root_value) if self.initial_root_value else None,
+            }
+
+    @classmethod
+    def from_dict(cls, data):
+        user = cls(data["name"], data.get("is_genesis", False), data.get("species", "human"))
+        user.consent = data.get("consent", True)
+        user.karma = Decimal(data.get("karma", '0'))
+        user.join_time = datetime.datetime.fromisoformat(data.get("join_time"))
+        user.last_active = datetime.datetime.fromisoformat(data.get("last_active"))
+        user.mint_count = data.get("mint_count", 0)
+        user.next_mint_threshold = Decimal(data.get("next_mint_threshold", Config.KARMA_MINT_THRESHOLD))
+        user.root_coin_id = data.get("root_coin_id")
+        user.coins_owned = data.get("coins_owned", [])
+        user.daily_actions = defaultdict(lambda: defaultdict(int), {k: defaultdict(int, v) for k, v in data.get("daily_actions", {}).items()})
+        user._last_action_day = data.get("_last_action_day", today())
+        user._reaction_timestamps = deque(data.get("_reaction_timestamps", []))
+        user.initial_root_value = Decimal(data.get("initial_root_value")) if data.get("initial_root_value") else None
+        return user
+
+
+class Coin:
+    def __init__(self, coin_id: str, creator: str, owner: str, value: Decimal,
+                 is_root: bool = False, fractional_of: Optional[str] = None,
+                 fractional_pct: Decimal = Decimal('0'), references: Optional[List[Dict]] = None,
+                 improvement: Optional[str] = None, genesis_creator: Optional[str] = None):
+        self.coin_id = coin_id
+        self.creator = creator
+        self.owner = owner
+        self.value = value
+        self.is_root = is_root
+        self.fractional_of = fractional_of
+        self.fractional_pct = fractional_pct
+        self.references = references or []
+        self.improvement = improvement or ""
+        self.ancestors: List[str] = []
+        self.reactions: List[Dict] = []
+        self.created_at = ts()
+        self.genesis_creator = genesis_creator or (creator if is_root else None)
+
+    def decrease_value(self, amount: Decimal):
+        if self.value < amount:
+            raise CoinDepletedError(f"Coin {self.coin_id} value depleted by {amount}")
+        self.value -= amount
+
+    def to_dict(self):
+        return {
+            "coin_id": self.coin_id,
+            "creator": self.creator,
+            "owner": self.owner,
+            "value": str(self.value),
+            "is_root": self.is_root,
+            "fractional_of": self.fractional_of,
+            "fractional_pct": str(self.fractional_pct),
+            "references": self.references,
+            "improvement": self.improvement,
+            "ancestors": self.ancestors[:],
+            "reactions": self.reactions[:],
+            "created_at": self.created_at,
+            "genesis_creator": self.genesis_creator,
+        }
+
+    @classmethod
+    def from_dict(cls, data):
+        coin = cls(
+            data["coin_id"], data["creator"], data["owner"], Decimal(data["value"]),
+            data.get("is_root", False), data.get("fractional_of"), Decimal(data.get("fractional_pct", '0')),
+            data.get("references"), data.get("improvement"), data.get("genesis_creator")
+        )
+        coin.ancestors = data.get("ancestors", [])
+        coin.reactions = data.get("reactions", [])
+        coin.created_at = data.get("created_at", ts())
+        return coin
+
+
+class EmojiMarket:
+    def __init__(self):
+        self.lock = threading.RLock()
+        self.market = {e: {"uses": Decimal('1'), "karma": Decimal(w), "weight": Decimal(w)} for e, w in Config.EMOJI_BASE.items()}
+
+    def update_weight(self, emoji: str, karma_delta: Decimal):
+        with self.lock:
+            em = self.market.setdefault(emoji, {"uses": Decimal('0'), "karma": Decimal('0'), "weight": Decimal('1')})
+            em["uses"] += 1
+            em["karma"] += karma_delta
+            alpha = Decimal('0.1')
+            em["weight"] = alpha * (em["karma"] / em["uses"]) + (Decimal('1') - alpha) * em["weight"]
+
+    def get_weight(self, emoji: str) -> Decimal:
+        with self.lock:
+            return self.market.get(emoji, {"weight": Decimal('1')})["weight"]
+
+    def to_dict(self):
+        with self.lock:
+            return {e: {k: str(v) if isinstance(v, Decimal) else v for k, v in val.items()} for e, val in self.market.items()}
+
+    @classmethod
+    def from_dict(cls, data):
+        em = cls()
+        with em.lock:
+            em.market = {e: {k: Decimal(v) if k != 'weight' else v for k, v in val.items()} for e, val in data.items()}
+        return em
+
+
+class HookManager:
+    def __init__(self):
+        self._hooks = defaultdict(list)
+        self.lock = threading.RLock()
+
+    def register_hook(self, event_name: str, callback: Callable):
+        with self.lock:
+            self._hooks[event_name].append(callback)
+            logging.info(f"Hook registered for event '{event_name}'")
+
+    def fire_hooks(self, event_name: str, *args, **kwargs):
+        with self.lock:
+            callbacks = list(self._hooks.get(event_name, []))
+        for cb in callbacks:
+            try:
+                cb(*args, **kwargs)
+            except Exception as e:
+                logging.error(f"Error in hook '{event_name}': {e}")
+
+
+class Proposal:
+    def __init__(self, proposal_id: str, creator: str, description: str, target: str, payload: dict):
+        self.proposal_id = proposal_id
+        self.creator = creator
+        self.description = description
+        self.target = target
+        self.payload = payload
+        self.created_at = ts()
+        self.votes = {}
+        self.status = "open"
+
+    def is_expired(self) -> bool:
+        created_dt = datetime.datetime.fromisoformat(self.created_at)
+        return (now_utc() - created_dt).total_seconds() > Config.PROPOSAL_VOTE_DURATION_HOURS * 3600
+
+    def tally_votes(self, users: Dict[str, User]) -> Dict[str, Decimal]:
+        species_count = defaultdict(set)
+        for uname in self.votes:
+            user = users.get(uname)
+            if user:
+                species_count[user.species].add(uname)
+
+        total_species = len(species_count)
+        if total_species == 0:
+            return {"yes": Decimal('0'), "no": Decimal('0'), "total": Decimal('0')}
+
+        species_weight = {s: Decimal('1') / Decimal(total_species) for s in species_count}
+        yes_weight = Decimal('0')
+        no_weight = Decimal('0')
+
+        for species, voters in species_count.items():
+            karma_yes = Decimal('0')
+            karma_no = Decimal('0')
+            total_karma = sum(users[v].karma for v in voters) or Decimal('1')
+
+            for v in voters:
+                vote = self.votes.get(v)
+                if vote == "yes":
+                    karma_yes += users[v].karma
+                elif vote == "no":
+                    karma_no += users[v].karma
+
+            yes_weight += species_weight[species] * (karma_yes / total_karma)
+            no_weight += species_weight[species] * (karma_no / total_karma)
+
+        total_votes = yes_weight + no_weight
+        return {"yes": yes_weight, "no": no_weight, "total": total_votes}
+
+    def is_approved(self, users: Dict[str, User]) -> bool:
+        tally = self.tally_votes(users)
+        if tally["total"] == 0:
+            return False
+        return tally["yes"] / tally["total"] >= Config.GOV_SUPERMAJORITY_THRESHOLD
+
+    def to_dict(self):
+        return {
+            "proposal_id": self.proposal_id,
+            "creator": self.creator,
+            "description": self.description,
+            "target": self.target,
+            "payload": self.payload,
+            "created_at": self.created_at,
+            "votes": self.votes.copy(),
+            "status": self.status,
+        }
+
+    @classmethod
+    def from_dict(cls, data):
+        proposal = cls(
+            data["proposal_id"], data["creator"], data["description"], data["target"], data["payload"]
+        )
+        proposal.created_at = data.get("created_at", ts())
+        proposal.votes = data.get("votes", {})
+        proposal.status = data.get("status", "open")
+        return proposal
+
+
+class RemixAgent:
+    def __init__(self, snapshot_file: str = "snapshot.json", logchain_file: str = "logchain.log"):
+        self.vaccine = Vaccine()
+        self.logchain = LogChain(filename=logchain_file)
+        self.users: Dict[str, User] = {}
+        self.coins: Dict[str, Coin] = {}
+        self.proposals: Dict[str, Proposal] = {}
+        self.treasury = Decimal('0')
+        self.treasury_active_fund = Decimal('0')
+        self.emoji_market = EmojiMarket()
+        self.hooks = HookManager()
+        self.lock = threading.RLock()
+        self.snapshot_file = snapshot_file
+        self._last_decay_day: Optional[str] = None
+        self._last_proposal_check: Optional[datetime.datetime] = None
+        self.marketplace_listings: Dict[str, Dict[str, Any]] = {}
+        self.load_state()
+
+    # Core internal ops (no validation):
+    def _do_add_user(self, name, is_genesis, species, karma, join_time, last_active, root_coin_id, coins_owned, initial_root_value, consent, root_coin_value):
+        user = User(name, is_genesis, species)
+        user.consent = consent
+        user.karma = karma
+        user.join_time = join_time
+        user.last_active = last_active
+        user.root_coin_id = root_coin_id
+        user.coins_owned = coins_owned
+        user.initial_root_value = initial_root_value
+        self.users[name] = user
+        # Add root coin
+        coin = Coin(root_coin_id, name, name, root_coin_value, True, genesis_creator=name)
+        self.coins[root_coin_id] = coin
+
+    def _do_mint_coin(self, user_name, new_coin_id, mint_value, new_coin_value,
+                      root_coin_id, genesis_creator, references,
+                      improvement, fractional_pct, ancestors, created_at):
+        user = self.users[user_name]
+        root_coin = self.coins[root_coin_id]
+        new_coin = Coin(
+            coin_id=new_coin_id,
+            creator=root_coin.creator,
+            owner=user_name,
+            value=new_coin_value,
+            is_root=False,
+            fractional_of=root_coin_id,
+            fractional_pct=fractional_pct,
+            references=references,
+            improvement=improvement,
+            genesis_creator=genesis_creator
+        )
+        new_coin.ancestors = ancestors
+        new_coin.created_at = created_at
+        self.coins[new_coin_id] = new_coin
+
+        # Deduct mint_value from root coin value
+        root_coin.value -= mint_value
+
+        # Treasury split
+        split_value = mint_value * Config.TREASURY_SHARE
+
+        # Add split_value back to genesis creator's root coin if possible
+        creator_user = self.users.get(genesis_creator)
+        if creator_user and creator_user.root_coin_id in self.coins:
+            creator_root_coin = self.coins[creator_user.root_coin_id]
+            creator_root_coin.value += split_value
+        else:
+            # Fallback: add to current root coin
+            root_coin.value += split_value
+
+        self.treasury += split_value
+
+        # Update user ownership and counters
+        user.coins_owned.append(new_coin_id)
+        user.mint_count += 1
+        # Halve the mint threshold or limit to minimum
+        user.next_mint_threshold = max(user.next_mint_threshold / 2, Config.FRACTIONAL_COIN_MIN_VALUE)
+        user.last_active = datetime.datetime.fromisoformat(created_at)
+
+    def _do_react_to_coin(self, reactor, coin_id, emoji, message,
+                          coin_value_reactor, coin_value_creator,
+                          coin_value_treasury, viral_decay, emoji_weight_used,
+                          network_bonus, decay_factor_used, timestamp):
+        reactor_user = self.users[reactor]
+        coin = self.coins[coin_id]
+        self.emoji_market.update_weight(emoji, coin_value_creator)
+        coin.reactions.append({"reactor": reactor, "emoji": emoji, "message": message, "timestamp": timestamp})
+        reactor_user.last_active = datetime.datetime.fromisoformat(timestamp)
+
+        # Add value to reactor's root coin
+        user_root_coin = self.coins.get(reactor_user.root_coin_id)
+        if user_root_coin:
+            user_root_coin.value += coin_value_reactor
+        else:
+            coin.value += coin_value_reactor
+
+        # Add value to genesis creator's root coin
+        creator_user = self.users.get(coin.genesis_creator)
+        if creator_user and creator_user.root_coin_id in self.coins:
+            creator_coin = self.coins[creator_user.root_coin_id]
+            creator_coin.value += coin_value_creator
+        else:
+            coin.value += coin_value_creator
+
+        # Treasury increment
+        self.treasury += coin_value_treasury
+
+    def _do_list_coin_for_sale(self, listing_id, seller, coin_id, price, created_at):
+        self.marketplace_listings[listing_id] = {
+            "listing_id": listing_id,
+            "seller": seller,
+            "coin_id": coin_id,
+            "price": price,
+            "status": "active",
+            "created_at": created_at,
+        }
+
+    def _do_buy_coin(self, buyer, seller, coin_id, price, fee_amount, listing_id, sold_at):
+        buyer_user = self.users[buyer]
+        seller_user = self.users[seller]
+        coin = self.coins[coin_id]
+        buyer_root_coin = self.coins[buyer_user.root_coin_id]
+        buyer_root_coin.value -= (price + fee_amount)
+        seller_root_coin = self.coins[seller_user.root_coin_id]
+        seller_root_coin.value += price
+        self.treasury += fee_amount
+        coin.owner = buyer
+        if coin_id in seller_user.coins_owned:
+            seller_user.coins_owned.remove(coin_id)
+        if coin_id not in buyer_user.coins_owned:
+            buyer_user.coins_owned.append(coin_id)
+        listing = self.marketplace_listings[listing_id]
+        listing["status"] = "sold"
+        listing["buyer"] = buyer
+        listing["sold_at"] = sold_at
+
+    def _do_transfer_coin(self, from_user, to_user, coin_id):
+        sender = self.users[from_user]
+        receiver = self.users[to_user]
+        coin = self.coins[coin_id]
+        coin.owner = to_user
+        if coin_id in sender.coins_owned:
+            sender.coins_owned.remove(coin_id)
+        if coin_id not in receiver.coins_owned:
+            receiver.coins_owned.append(coin_id)
+
+    def _do_create_proposal(self, proposal_id, creator, description, target, payload, created_at):
+        proposal = Proposal(proposal_id, creator, description, target, payload)
+        proposal.created_at = created_at
+        self.proposals[proposal_id] = proposal
+
+    def _do_vote_proposal(self, proposal_id, voter, vote):
+        proposal = self.proposals[proposal_id]
+        proposal.votes[voter] = vote
+
+    def _do_execute_proposal(self, proposal_id):
+        proposal = self.proposals[proposal_id]
+        proposal.status = "executed"
+
+        # Fully event-source Config updates if applicable
+        if proposal.target == "Config" and "key" in proposal.payload and "value" in proposal.payload:
+            key = proposal.payload["key"]
+            value = str(proposal.payload["value"])
+            config_update_event = {
+                "event": "UPDATE_CONFIG",
+                "key": key,
+                "value": value,
+                "proposal_id": proposal_id,
+                "timestamp": ts(),
+            }
+            self.logchain.add(config_update_event)
+            self._apply_event(config_update_event)
+
+    def _do_close_proposal(self, proposal_id, status):
+        proposal = self.proposals[proposal_id]
+        proposal.status = status
+
+    def _do_update_config(self, key, value):
+        Config.update_policy(key, value)
+        logging.info(f"Config updated: {key} = {value}")
+
+    def _do_daily_decay(self, treasury_allocation, timestamp):
+        self.treasury -= treasury_allocation
+        self.treasury_active_fund += treasury_allocation
+        self._last_decay_day = datetime.datetime.fromisoformat(timestamp).date().isoformat()
+
+    # Public API with strict validate → log → apply event pattern:
+
+    @acquire_agent_lock
+    def add_user(self, name: str, genesis: bool = False, species: str = "human") -> User:
+        if not is_valid_username(name):
+            raise InvalidInputError(f"Invalid username format: '{name}'")
+        if name in self.users:
+            raise UserExistsError(f"User '{name}' exists")
+
+        root_value = Config.GENESIS_COIN_INITIAL_VALUE if genesis else Config.STANDARD_COIN_INITIAL_VALUE
+        coin_id = uuid.uuid4().hex
+        event = {
+            "event": "ADD_USER",
+            "user": name,
+            "genesis": genesis,
+            "species": species,
+            "karma": "0",
+            "coin_id": coin_id,
+            "coins_owned": [],
+            "initial_root_value": str(root_value),
+            "consent": True,
+            "root_value": str(root_value),
+            "timestamp": ts(),
+        }
+        self.logchain.add(event)
+        self._apply_event(event)
+        self.hooks.fire_hooks("user_added", user=self.users[name])
+        logging.info(f"User added: {name}")
+        return self.users[name]
+
+    @acquire_agent_lock
+    def mint_fractional_post(self, user_name: str, improvement: str, references: List[Dict]) -> str:
+        if user_name not in self.users:
+            raise InvalidInputError(f"User '{user_name}' not found")
+        user = self.users[user_name]
+
+        if not user.check_mint_rate_limit():
+            raise RateLimitError(f"User '{user_name}' exceeded mint limit")
+
+        if len(improvement) < Config.MIN_IMPROVEMENT_LEN:
+            raise ImprovementRequiredError("Improvement description too short")
+
+        root_coin = self.coins.get(user.root_coin_id)
+        if not root_coin or root_coin.value < Config.FRACTIONAL_COIN_MIN_VALUE:
+            raise InsufficientFundsError("Insufficient root coin value to mint")
+
+        # Require karma for non-genesis users to mint fractional coin
+        required_karma = (root_coin.value * Decimal('0.05')).quantize(Decimal('1'))
+        if not user.is_genesis and user.karma < required_karma:
+            raise KarmaError("Not enough karma to mint")
+
+        new_coin_id = uuid.uuid4().hex
+        mint_value = root_coin.value * Config.MAX_FRACTION_START
+
+        event = {
+            "event": "MINT",
+            "user": user_name,
+            "coin": new_coin_id,
+            "val": str(mint_value),
+            "root_coin_id": user.root_coin_id,
+            "genesis_creator": root_coin.genesis_creator,
+            "references": references,
+            "improvement": improvement,
+            "fraction_percent": str(Config.MAX_FRACTION_START),
+            "ancestors": root_coin.ancestors + [root_coin.coin_id],
+            "timestamp": ts(),
+        }
+        self.logchain.add(event)
+        self._apply_event(event)
+        self.hooks.fire_hooks("coin_minted", user=user, coin_id=new_coin_id)
+        logging.info(f"User {user_name} minted coin {new_coin_id}")
+
+        # Deduct small karma cost for minting (non-genesis)
+        if not user.is_genesis:
+            user.karma -= required_karma / Decimal('10')
+
+        return new_coin_id
+
+    @acquire_agent_lock
+    def react_to_coin(self, reactor: str, coin_id: str, emoji: str, message: Optional[str] = None):
+        if reactor not in self.users:
+            raise InvalidInputError(f"Reactor '{reactor}' not found")
+        if coin_id not in self.coins:
+            raise InvalidInputError(f"Coin '{coin_id}' not found")
+        if not is_valid_emoji(emoji):
+            raise EmojiRequiredError(f"Emoji '{emoji}' not supported")
+
+        reactor_user = self.users[reactor]
+        if not reactor_user.check_reaction_rate_limit():
+            raise RateLimitError("Reaction rate limit exceeded")
+
+        # Require karma for non-genesis users to react
+        root_coin = self.coins[reactor_user.root_coin_id]
+        required_karma = (root_coin.value * Decimal('0.02')).quantize(Decimal('1'))
+        if not reactor_user.is_genesis and reactor_user.karma < required_karma:
+            raise KarmaError("Not enough karma to react")
+
+        coin_value_reactor = Decimal('1')
+        coin_value_creator = Decimal('1')
+        coin_value_treasury = Decimal('1')
+
+        event = {
+            "event": "REACT",
+            "reactor": reactor,
+            "coin": coin_id,
+            "emoji": emoji,
+            "message": message or "",
+            "coin_value_reactor": str(coin_value_reactor),
+            "coin_value_creator": str(coin_value_creator),
+            "coin_value_treasury": str(coin_value_treasury),
+            "viral_decay": str(Config.DAILY_DECAY),
+            "emoji_weight_used": str(self.emoji_market.get_weight(emoji)),
+            "network_bonus": "1",
+            "decay_factor_used": "1",
+            "timestamp": ts(),
+        }
+        self.logchain.add(event)
+        self._apply_event(event)
+        self.hooks.fire_hooks("coin_reacted", reactor=reactor, coin_id=coin_id, emoji=emoji)
+        logging.info(f"User {reactor} reacted to coin {coin_id} with {emoji}")
+
+        # Deduct small karma cost for reacting (non-genesis)
+        if not reactor_user.is_genesis:
+            reactor_user.karma -= required_karma / Decimal('20')
+
+    @acquire_agent_lock
+    def list_coin_for_sale(self, seller: str, coin_id: str, price: Decimal) -> str:
+        if seller not in self.users:
+            raise InvalidInputError(f"Seller '{seller}' not found")
+        if coin_id not in self.coins:
+            raise InvalidInputError(f"Coin '{coin_id}' not found")
+        coin = self.coins[coin_id]
+        if coin.owner != seller:
+            raise TradeError("Seller does not own the coin")
+        listing_id = uuid.uuid4().hex
+        event = {
+            "event": "LIST_FOR_SALE",
+            "listing_id": listing_id,
+            "seller": seller,
+            "coin_id": coin_id,
+            "price": str(price),
+            "status": "active",
+            "timestamp": ts(),
+        }
+        self.logchain.add(event)
+        self._apply_event(event)
+        self.hooks.fire_hooks("coin_listed", seller=seller, coin_id=coin_id, price=price)
+        logging.info(f"User {seller} listed coin {coin_id} for sale at {price}")
+        return listing_id
+
+    @acquire_agent_lock
+    def buy_coin(self, buyer: str, listing_id: str):
+        if buyer not in self.users:
+            raise InvalidInputError(f"Buyer '{buyer}' not found")
+        if listing_id not in self.marketplace_listings:
+            raise InvalidInputError(f"Listing '{listing_id}' not found")
+        listing = self.marketplace_listings[listing_id]
+        if listing["status"] != "active":
+            raise TradeError("Listing not active")
+        seller = listing["seller"]
+        coin_id = listing["coin_id"]
+        price = Decimal(listing["price"])
+        fee = price * Config.MARKET_FEE
+
+        buyer_user = self.users[buyer]
+        seller_user = self.users[seller]
+        buyer_root_coin = self.coins.get(buyer_user.root_coin_id)
+        if not buyer_root_coin or buyer_root_coin.value < (price + fee):
+            raise InsufficientFundsError("Buyer has insufficient funds")
+
+        event = {
+            "event": "BUY_COIN",
+            "buyer": buyer,
+            "seller": seller,
+            "coin_id": coin_id,
+            "price": str(price),
+            "fee_amount": str(fee),
+            "listing_id": listing_id,
+            "sold_at": ts(),
+        }
+        self.logchain.add(event)
+        self._apply_event(event)
+        self.hooks.fire_hooks("coin_sold", buyer=buyer, seller=seller, coin_id=coin_id, price=price)
+        logging.info(f"User {buyer} bought coin {coin_id} from {seller} for {price}")
+
+    @acquire_agent_lock
+    def transfer_coin(self, from_user: str, to_user: str, coin_id: str):
+        if from_user not in self.users or to_user not in self.users:
+            raise InvalidInputError("User(s) not found")
+        coin = self.coins.get(coin_id)
+        if not coin or coin.owner != from_user:
+            raise TradeError("Sender does not own the coin")
+        event = {
+            "event": "TRANSFER_COIN",
+            "from_user": from_user,
+            "to_user": to_user,
+            "coin_id": coin_id,
+            "timestamp": ts(),
+        }
+        self.logchain.add(event)
+        self._apply_event(event)
+        self.hooks.fire_hooks("coin_transferred", from_user=from_user, to_user=to_user, coin_id=coin_id)
+        logging.info(f"Transferred coin {coin_id} from {from_user} to {to_user}")
+
+    @acquire_agent_lock
+    def create_proposal(self, creator: str, description: str, target: str, payload: dict) -> str:
+        if creator not in self.users:
+            raise InvalidInputError(f"Creator '{creator}' not found")
+        proposal_id = uuid.uuid4().hex
+        event = {
+            "event": "CREATE_PROPOSAL",
+            "proposal_id": proposal_id,
+            "creator": creator,
+            "description": description,
+            "target": target,
+            "payload": payload,
+            "timestamp": ts(),
+        }
+        self.logchain.add(event)
+        self._apply_event(event)
+        self.hooks.fire_hooks("proposal_created", proposal_id=proposal_id)
+        logging.info(f"Proposal created by {creator} with id {proposal_id}")
+        return proposal_id
+
+    @acquire_agent_lock
+    def vote_proposal(self, proposal_id: str, voter: str, vote: str):
+        if voter not in self.users:
+            raise InvalidInputError(f"Voter '{voter}' not found")
+        if proposal_id not in self.proposals:
+            raise InvalidInputError(f"Proposal '{proposal_id}' not found")
+        if vote not in ("yes", "no"):
+            raise VoteError("Invalid vote value")
+        proposal = self.proposals[proposal_id]
+        if proposal.is_expired() or proposal.status != "open":
+            raise VoteError("Proposal not open for voting")
+
+        event = {
+            "event": "VOTE_PROPOSAL",
+            "proposal_id": proposal_id,
+            "voter": voter,
+            "vote": vote,
+            "timestamp": ts(),
+        }
+        self.logchain.add(event)
+        self._apply_event(event)
+        self.hooks.fire_hooks("proposal_voted", proposal_id=proposal_id, voter=voter, vote=vote)
+        logging.info(f"User {voter} voted '{vote}' on proposal {proposal_id}")
+
+    @acquire_agent_lock
+    def execute_proposal(self, proposal_id: str):
+        if proposal_id not in self.proposals:
+            raise InvalidInputError(f"Proposal '{proposal_id}' not found")
+        proposal = self.proposals[proposal_id]
+        if proposal.status != "open":
+            raise VoteError("Proposal not open for execution")
+        if not proposal.is_approved(self.users):
+            raise VoteError("Proposal not approved for execution")
+
+        event = {
+            "event": "EXECUTE_PROPOSAL",
+            "proposal_id": proposal_id,
+            "timestamp": ts(),
+        }
+        self.logchain.add(event)
+        self._apply_event(event)
+        self.hooks.fire_hooks("proposal_executed", proposal_id=proposal_id)
+        logging.info(f"Proposal {proposal_id} executed")
+
+    @acquire_agent_lock
+    def close_proposal(self, proposal_id: str, status: str):
+        if proposal_id not in self.proposals:
+            raise InvalidInputError(f"Proposal '{proposal_id}' not found")
+        if status not in ("closed", "rejected", "executed"):
+            raise InvalidInputError(f"Invalid proposal close status: {status}")
+        event = {
+            "event": "CLOSE_PROPOSAL",
+            "proposal_id": proposal_id,
+            "status": status,
+            "timestamp": ts(),
+        }
+        self.logchain.add(event)
+        self._apply_event(event)
+        self.hooks.fire_hooks("proposal_closed", proposal_id=proposal_id, status=status)
+        logging.info(f"Proposal {proposal_id} closed with status {status}")
+
+    @acquire_agent_lock
+    def apply_daily_decay(self):
+        today_str = today()
+        if self._last_decay_day == today_str:
+            return  # Already applied today
+
+        # Compute decay amount (e.g. 1% of treasury)
+        treasury_allocation = self.treasury * (Decimal('1') - Config.DAILY_DECAY)
+        if treasury_allocation <= 0:
+            return
+
+        event = {
+            "event": "DAILY_DECAY",
+            "treasury_allocation": str(treasury_allocation),
+            "timestamp": ts(),
+        }
+        self.logchain.add(event)
+        self._apply_event(event)
+        self.hooks.fire_hooks("daily_decay", amount=treasury_allocation)
+        logging.info(f"Daily decay applied: {treasury_allocation}")
+
+    def _apply_event(self, event: Dict[str, Any]):
+        et = event["event"]
+        timestamp = event.get("timestamp", ts())
+        try:
+            # Removed redundant existence checks for pure projection
+            if et == "ADD_USER":
+                self._do_add_user(
+                    name=event["user"],
+                    is_genesis=event.get("genesis", False),
+                    species=event.get("species", "human"),
+                    karma=Decimal(event.get("karma", '0')),
+                    join_time=datetime.datetime.fromisoformat(timestamp),
+                    last_active=datetime.datetime.fromisoformat(timestamp),
+                    root_coin_id=event["coin_id"],
+                    coins_owned=event.get("coins_owned", []),
+                    initial_root_value=Decimal(event["initial_root_value"]),
+                    consent=event.get("consent", True),
+                    root_coin_value=Decimal(event["root_value"])
+                )
+            elif et == "MINT":
+                self._do_mint_coin(
+                    user_name=event["user"],
+                    new_coin_id=event["coin"],
+                    mint_value=Decimal(event["val"]),
+                    new_coin_value=Decimal(event.get("new_coin_value", '0')) or Decimal(event["val"]),  # fallback to mint val
+                    root_coin_id=event["root_coin_id"],
+                    genesis_creator=event.get("genesis_creator", ""),
+                    references=event.get("references", []),
+                    improvement=event.get("improvement", ""),
+                    fractional_pct=Decimal(event.get("fraction_percent", '0')),
+                    ancestors=event.get("ancestors", []),
+                    created_at=timestamp
+                )
+            elif et == "REACT":
+                self._do_react_to_coin(
+                    reactor=event["reactor"],
+                    coin_id=event["coin"],
+                    emoji=event["emoji"],
+                    message=event.get("message"),
+                    coin_value_reactor=Decimal(event["coin_value_reactor"]),
+                    coin_value_creator=Decimal(event["coin_value_creator"]),
+                    coin_value_treasury=Decimal(event["coin_value_treasury"]),
+                    viral_decay=Decimal(event.get("viral_decay", '1')),
+                    emoji_weight_used=Decimal(event.get("emoji_weight_used", '1')),
+                    network_bonus=Decimal(event.get("network_bonus", '1')),
+                    decay_factor_used=Decimal(event.get("decay_factor_used", '1')),
+                    timestamp=timestamp
+                )
+            elif et == "LIST_FOR_SALE":
+                self._do_list_coin_for_sale(
+                    listing_id=event["listing_id"],
+                    seller=event["seller"],
+                    coin_id=event["coin_id"],
+                    price=Decimal(event["price"]),
+                    created_at=timestamp
+                )
+            elif et == "BUY_COIN":
+                self._do_buy_coin(
+                    buyer=event["buyer"],
+                    seller=event["seller"],
+                    coin_id=event["coin_id"],
+                    price=Decimal(event["price"]),
+                    fee_amount=Decimal(event["fee_amount"]),
+                    listing_id=event["listing_id"],
+                    sold_at=event.get("sold_at", timestamp)
+                )
+            elif et == "TRANSFER_COIN":
+                self._do_transfer_coin(
+                    from_user=event["from_user"],
+                    to_user=event["to_user"],
+                    coin_id=event["coin_id"]
+                )
+            elif et == "CREATE_PROPOSAL":
+                self._do_create_proposal(
+                    proposal_id=event["proposal_id"],
+                    creator=event["creator"],
+                    description=event["description"],
+                    target=event["target"],
+                    payload=event["payload"],
+                    created_at=timestamp
+                )
+            elif et == "VOTE_PROPOSAL":
+                self._do_vote_proposal(
+                    proposal_id=event["proposal_id"],
+                    voter=event["voter"],
+                    vote=event["vote"]
+                )
+            elif et == "EXECUTE_PROPOSAL":
+                self._do_execute_proposal(
+                    proposal_id=event["proposal_id"]
+                )
+            elif et == "CLOSE_PROPOSAL":
+                self._do_close_proposal(
+                    proposal_id=event["proposal_id"],
+                    status=event["status"]
+                )
+            elif et == "UPDATE_CONFIG":
+                self._do_update_config(
+                    key=event["key"],
+                    value=Decimal(event["value"])
+                )
+            elif et == "DAILY_DECAY":
+                self._do_daily_decay(
+                    treasury_allocation=Decimal(event["treasury_allocation"]),
+                    timestamp=timestamp
+                )
+            else:
+                logging.warning(f"Unknown event type '{et}' ignored.")
+        except Exception as e:
+            logging.error(f"Error applying event {et} during replay: {e}. Event: {json.dumps(event)}")
+
+    def save_snapshot(self):
+        try:
+            data = {
+                "users": {k: v.to_dict() for k, v in self.users.items()},
+                "coins": {k: v.to_dict() for k, v in self.coins.items()},
+                "proposals": {k: v.to_dict() for k, v in self.proposals.items()},
+                "treasury": str(self.treasury),
+                "treasury_active_fund": str(self.treasury_active_fund),
+                "emoji_market": self.emoji_market.to_dict(),
+                "marketplace_listings": self.marketplace_listings,
+                "_last_decay_day": self._last_decay_day,
+                "_last_proposal_check": self._last_proposal_check.isoformat() if self._last_proposal_check else None,
+            }
+            with open(self.snapshot_file, "w", encoding="utf-8") as f:
+                json.dump(data, f)
+            logging.info(f"Snapshot saved to {self.snapshot_file}")
+        except Exception as e:
+            logging.error(f"Failed to save snapshot: {e}")
+
+    def load_state(self):
+        # Load snapshot if exists
+        try:
+            with open(self.snapshot_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            self.users = {k: User.from_dict(v) for k, v in data.get("users", {}).items()}
+            self.coins = {k: Coin.from_dict(v) for k, v in data.get("coins", {}).items()}
+            self.proposals = {k: Proposal.from_dict(v) for k, v in data.get("proposals", {}).items()}
+            self.treasury = Decimal(data.get("treasury", '0'))
+            self.treasury_active_fund = Decimal(data.get("treasury_active_fund", '0'))
+            self.emoji_market = EmojiMarket.from_dict(data.get("emoji_market", {}))
+            self.marketplace_listings = data.get("marketplace_listings", {})
+            self._last_decay_day = data.get("_last_decay_day")
+            last_proposal_check_str = data.get("_last_proposal_check")
+            self._last_proposal_check = datetime.datetime.fromisoformat(last_proposal_check_str) if last_proposal_check_str else None
+            logging.info(f"Snapshot loaded from {self.snapshot_file}")
+        except FileNotFoundError:
+            logging.info("No snapshot file found, starting fresh")
+        except Exception as e:
+            logging.error(f"Failed to load snapshot: {e}")
+
+        # Replay events after snapshot's last event timestamp for full catch-up
+        replay_after = self.logchain.last_timestamp
+        if replay_after:
+            # Find events after replay_after timestamp
+            with self.logchain.lock:
+                for line in self.logchain.entries:
+                    event_json, _ = line.split("||")
+                    event_data = json.loads(event_json)
+                    event_ts = event_data.get("timestamp")
+                    if event_ts and event_ts > replay_after:
+                        self._apply_event(event_data)
+
+
+
+
+
+
+
+
+
+
+#!/usr/bin/env python3
+"""
+MetaKarma Hub - Production Rewrite
+A clean, secure, and scalable social tokenomics platform.
+
+Key improvements:
+- Proper separation of concerns
+- Database-backed persistence with transactions
+- Secure authentication and input validation
+- Economic sustainability with supply controls
+- Clean API design with proper error handling
+- Comprehensive testing support
+"""
+
+import os
+import re
+import json
+import uuid
+import logging
+import hashlib
+import asyncio
+from datetime import datetime, timezone, timedelta
+from decimal import Decimal, getcontext, ROUND_DOWN
+from typing import Optional, Dict, List, Set, Union, Any
+from dataclasses import dataclass, asdict
+from enum import Enum
+from contextlib import asynccontextmanager
+
+import sqlite3
+import aiosqlite
+from passlib.hash import bcrypt
+from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from pydantic import BaseModel, validator, Field
+import jwt
+
+# Set decimal precision for financial calculations
+getcontext().prec = 28
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+# Configuration
+class Config:
+    # Security
+    SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-change-in-production")
+    TOKEN_EXPIRE_HOURS = 24
+    BCRYPT_ROUNDS = 12
+    
+    # Economics
+    INITIAL_ROOT_VALUE = Decimal("1000")
+    MAX_SUPPLY = Decimal("21000000")  # Bitcoin-inspired supply cap
+    GENESIS_BONUS = Decimal("10000")
+    MIN_FRACTION_VALUE = Decimal("1")
+    MAX_FRACTION_PERCENT = Decimal("0.1")  # 10% max per mint
+    
+    # Social
+    MAX_REACTION_BURST = 10
+    RATE_LIMIT_WINDOW = 60  # seconds
+    MIN_CONTENT_LENGTH = 10
+    MAX_CONTENT_LENGTH = 1000
+    
+    # Governance
+    VOTE_DURATION_HOURS = 72
+    QUORUM_THRESHOLD = Decimal("0.1")  # 10% participation
+    APPROVAL_THRESHOLD = Decimal("0.6")  # 60% approval
+    
+    # Database
+    DATABASE_URL = os.getenv("DATABASE_URL", "metakarma.db")
+
+# Enums
+class UserRole(str, Enum):
+    USER = "user"
+    MODERATOR = "moderator"
+    ADMIN = "admin"
+
+class ProposalStatus(str, Enum):
+    ACTIVE = "active"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    EXECUTED = "executed"
+
+class TransactionType(str, Enum):
+    MINT = "mint"
+    TRANSFER = "transfer"
+    REACTION_REWARD = "reaction_reward"
+    GOVERNANCE_REWARD = "governance_reward"
+
+# Data Models
+@dataclass
+class User:
+    user_id: str
+    username: str
+    email: str
+    password_hash: str
+    role: UserRole
+    karma: Decimal
+    root_coin_value: Decimal
+    total_earned: Decimal
+    created_at: datetime
+    last_active: datetime
+    is_active: bool = True
+
+@dataclass
+class Coin:
+    coin_id: str
+    creator_id: str
+    owner_id: str
+    parent_coin_id: Optional[str]
+    value: Decimal
+    content: str
+    improvement_note: str
+    created_at: datetime
+    is_root: bool = False
+
+@dataclass
+class Reaction:
+    reaction_id: str
+    coin_id: str
+    user_id: str
+    emoji: str
+    message: Optional[str]
+    karma_value: Decimal
+    created_at: datetime
+
+@dataclass
+class Transaction:
+    transaction_id: str
+    from_user_id: Optional[str]
+    to_user_id: str
+    coin_id: Optional[str]
+    amount: Decimal
+    transaction_type: TransactionType
+    description: str
+    created_at: datetime
+
+@dataclass
+class Proposal:
+    proposal_id: str
+    creator_id: str
+    title: str
+    description: str
+    proposal_data: Dict[str, Any]
+    status: ProposalStatus
+    yes_votes: Decimal
+    no_votes: Decimal
+    created_at: datetime
+    expires_at: datetime
+
+# Pydantic models for API
+class UserCreate(BaseModel):
+    username: str = Field(..., min_length=3, max_length=30, regex=r'^[a-zA-Z0-9_]+$')
+    email: str = Field(..., regex=r'^[^@]+@[^@]+\.[^@]+$')
+    password: str = Field(..., min_length=8)
+
+class UserLogin(BaseModel):
+    username: str
+    password: str
+
+class CoinCreate(BaseModel):
+    parent_coin_id: Optional[str] = None
+    content: str = Field(..., min_length=Config.MIN_CONTENT_LENGTH, max_length=Config.MAX_CONTENT_LENGTH)
+    improvement_note: str = Field(..., min_length=5, max_length=500)
+    fraction_percent: Optional[Decimal] = Field(None, ge=0.001, le=Config.MAX_FRACTION_PERCENT)
+
+class ReactionCreate(BaseModel):
+    coin_id: str
+    emoji: str = Field(..., regex=r'^[\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\U0001F1E0-\U0001F1FF\U00002600-\U000027BF\U0001F900-\U0001F9FF]+$')
+    message: Optional[str] = Field(None, max_length=200)
+
+class ProposalCreate(BaseModel):
+    title: str = Field(..., min_length=10, max_length=100)
+    description: str = Field(..., min_length=50, max_length=2000)
+    proposal_data: Dict[str, Any]
+
+class VoteCreate(BaseModel):
+    proposal_id: str
+    support: bool
+
+# Exceptions
+class MetaKarmaError(Exception):
+    pass
+
+class AuthenticationError(MetaKarmaError):
+    pass
+
+class InsufficientFundsError(MetaKarmaError):
+    pass
+
+class RateLimitError(MetaKarmaError):
+    pass
+
+class ValidationError(MetaKarmaError):
+    pass
+
+class NotFoundError(MetaKarmaError):
+    pass
+
+# Security utilities
+class SecurityManager:
+    @staticmethod
+    def hash_password(password: str) -> str:
+        return bcrypt.hash(password, rounds=Config.BCRYPT_ROUNDS)
+    
+    @staticmethod
+    def verify_password(password: str, hashed: str) -> bool:
+        return bcrypt.verify(password, hashed)
+    
+    @staticmethod
+    def create_token(user_id: str, username: str) -> str:
+        payload = {
+            "user_id": user_id,
+            "username": username,
+            "exp": datetime.utcnow() + timedelta(hours=Config.TOKEN_EXPIRE_HOURS),
+            "iat": datetime.utcnow()
+        }
+        return jwt.encode(payload, Config.SECRET_KEY, algorithm="HS256")
+    
+    @staticmethod
+    def verify_token(token: str) -> Dict[str, Any]:
+        try:
+            payload = jwt.decode(token, Config.SECRET_KEY, algorithms=["HS256"])
+            return payload
+        except jwt.ExpiredSignatureError:
+            raise AuthenticationError("Token expired")
+        except jwt.InvalidTokenError:
+            raise AuthenticationError("Invalid token")
+
+# Content filtering
+class ContentFilter:
+    BLOCKED_PATTERNS = [
+        r'\b(?:hack|exploit|malware|phishing|scam)\b',
+        r'\b(?:spam|bot|fake)\b',
+        r'\b(?:hate|harassment|abuse)\b'
+    ]
+    
+    def __init__(self):
+        self.compiled_patterns = [re.compile(pattern, re.IGNORECASE) for pattern in self.BLOCKED_PATTERNS]
+    
+    def is_safe(self, content: str) -> bool:
+        for pattern in self.compiled_patterns:
+            if pattern.search(content):
+                return False
+        return True
+
+# Rate limiter
+class RateLimiter:
+    def __init__(self):
+        self.attempts: Dict[str, List[datetime]] = {}
+    
+    def check_rate_limit(self, key: str, max_attempts: int = Config.MAX_REACTION_BURST, 
+                        window_seconds: int = Config.RATE_LIMIT_WINDOW) -> bool:
+        now = datetime.utcnow()
+        window_start = now - timedelta(seconds=window_seconds)
+        
+        if key not in self.attempts:
+            self.attempts[key] = []
+        
+        # Clean old attempts
+        self.attempts[key] = [attempt for attempt in self.attempts[key] if attempt > window_start]
+        
+        if len(self.attempts[key]) >= max_attempts:
+            return False
+        
+        self.attempts[key].append(now)
+        return True
+
+# Database layer
+class Database:
+    def __init__(self, db_path: str = Config.DATABASE_URL):
+        self.db_path = db_path
+    
+    async def initialize(self):
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute('''
+                CREATE TABLE IF NOT EXISTS users (
+                    user_id TEXT PRIMARY KEY,
+                    username TEXT UNIQUE NOT NULL,
+                    email TEXT UNIQUE NOT NULL,
+                    password_hash TEXT NOT NULL,
+                    role TEXT NOT NULL DEFAULT 'user',
+                    karma DECIMAL(28,8) DEFAULT 0,
+                    root_coin_value DECIMAL(28,8) DEFAULT 0,
+                    total_earned DECIMAL(28,8) DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    is_active BOOLEAN DEFAULT 1
+                )
+            ''')
+            
+            await db.execute('''
+                CREATE TABLE IF NOT EXISTS coins (
+                    coin_id TEXT PRIMARY KEY,
+                    creator_id TEXT NOT NULL,
+                    owner_id TEXT NOT NULL,
+                    parent_coin_id TEXT,
+                    value DECIMAL(28,8) NOT NULL,
+                    content TEXT NOT NULL,
+                    improvement_note TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    is_root BOOLEAN DEFAULT 0,
+                    FOREIGN KEY (creator_id) REFERENCES users (user_id),
+                    FOREIGN KEY (owner_id) REFERENCES users (user_id),
+                    FOREIGN KEY (parent_coin_id) REFERENCES coins (coin_id)
+                )
+            ''')
+            
+            await db.execute('''
+                CREATE TABLE IF NOT EXISTS reactions (
+                    reaction_id TEXT PRIMARY KEY,
+                    coin_id TEXT NOT NULL,
+                    user_id TEXT NOT NULL,
+                    emoji TEXT NOT NULL,
+                    message TEXT,
+                    karma_value DECIMAL(28,8) NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (coin_id) REFERENCES coins (coin_id),
+                    FOREIGN KEY (user_id) REFERENCES users (user_id)
+                )
+            ''')
+            
+            await db.execute('''
+                CREATE TABLE IF NOT EXISTS transactions (
+                    transaction_id TEXT PRIMARY KEY,
+                    from_user_id TEXT,
+                    to_user_id TEXT NOT NULL,
+                    coin_id TEXT,
+                    amount DECIMAL(28,8) NOT NULL,
+                    transaction_type TEXT NOT NULL,
+                    description TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (from_user_id) REFERENCES users (user_id),
+                    FOREIGN KEY (to_user_id) REFERENCES users (user_id),
+                    FOREIGN KEY (coin_id) REFERENCES coins (coin_id)
+                )
+            ''')
+            
+            await db.execute('''
+                CREATE TABLE IF NOT EXISTS proposals (
+                    proposal_id TEXT PRIMARY KEY,
+                    creator_id TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    description TEXT NOT NULL,
+                    proposal_data TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'active',
+                    yes_votes DECIMAL(28,8) DEFAULT 0,
+                    no_votes DECIMAL(28,8) DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    expires_at TIMESTAMP NOT NULL,
+                    FOREIGN KEY (creator_id) REFERENCES users (user_id)
+                )
+            ''')
+            
+            await db.execute('''
+                CREATE TABLE IF NOT EXISTS votes (
+                    vote_id TEXT PRIMARY KEY,
+                    proposal_id TEXT NOT NULL,
+                    user_id TEXT NOT NULL,
+                    support BOOLEAN NOT NULL,
+                    voting_power DECIMAL(28,8) NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (proposal_id) REFERENCES proposals (proposal_id),
+                    FOREIGN KEY (user_id) REFERENCES users (user_id),
+                    UNIQUE(proposal_id, user_id)
+                )
+            ''')
+            
+            # Create indexes for performance
+            await db.execute('CREATE INDEX IF NOT EXISTS idx_coins_owner ON coins (owner_id)')
+            await db.execute('CREATE INDEX IF NOT EXISTS idx_coins_creator ON coins (creator_id)')
+            await db.execute('CREATE INDEX IF NOT EXISTS idx_reactions_coin ON reactions (coin_id)')
+            await db.execute('CREATE INDEX IF NOT EXISTS idx_transactions_user ON transactions (to_user_id)')
+            
+            await db.commit()
+
+# Core business logic
+class MetaKarmaService:
+    def __init__(self, db: Database):
+        self.db = db
+        self.security = SecurityManager()
+        self.content_filter = ContentFilter()
+        self.rate_limiter = RateLimiter()
+    
+    async def create_user(self, user_data: UserCreate) -> User:
+        # Validate content
+        if not self.content_filter.is_safe(user_data.username):
+            raise ValidationError("Username contains inappropriate content")
+        
+        # Create user
+        user_id = str(uuid.uuid4())
+        password_hash = self.security.hash_password(user_data.password)
+        
+        async with aiosqlite.connect(self.db.db_path) as db:
+            try:
+                await db.execute('''
+                    INSERT INTO users (user_id, username, email, password_hash, root_coin_value)
+                    VALUES (?, ?, ?, ?, ?)
+                ''', (user_id, user_data.username, user_data.email, password_hash, Config.INITIAL_ROOT_VALUE))
+                
+                # Create root coin
+                root_coin_id = str(uuid.uuid4())
+                await db.execute('''
+                    INSERT INTO coins (coin_id, creator_id, owner_id, value, content, improvement_note, is_root)
+                    VALUES (?, ?, ?, ?, ?, ?, 1)
+                ''', (root_coin_id, user_id, user_id, Config.INITIAL_ROOT_VALUE, 
+                     f"Root coin for {user_data.username}", "Genesis creation", ))
+                
+                await db.commit()
+                
+                # Return user object
+                user = User(
+                    user_id=user_id,
+                    username=user_data.username,
+                    email=user_data.email,
+                    password_hash=password_hash,
+                    role=UserRole.USER,
+                    karma=Decimal("0"),
+                    root_coin_value=Config.INITIAL_ROOT_VALUE,
+                    total_earned=Decimal("0"),
+                    created_at=datetime.utcnow(),
+                    last_active=datetime.utcnow()
+                )
+                
+                logger.info(f"Created user: {user_data.username}")
+                return user
+                
+            except sqlite3.IntegrityError as e:
+                if "username" in str(e):
+                    raise ValidationError("Username already exists")
+                elif "email" in str(e):
+                    raise ValidationError("Email already exists")
+                raise ValidationError("User creation failed")
+    
+    async def authenticate_user(self, login_data: UserLogin) -> str:
+        async with aiosqlite.connect(self.db.db_path) as db:
+            cursor = await db.execute('''
+                SELECT user_id, username, password_hash, is_active
+                FROM users WHERE username = ?
+            ''', (login_data.username,))
+            row = await cursor.fetchone()
+            
+            if not row or not row[3]:  # is_active check
+                raise AuthenticationError("Invalid credentials")
+            
+            user_id, username, password_hash, _ = row
+            
+            if not self.security.verify_password(login_data.password, password_hash):
+                raise AuthenticationError("Invalid credentials")
+            
+            # Update last active
+            await db.execute('''
+                UPDATE users SET last_active = CURRENT_TIMESTAMP WHERE user_id = ?
+            ''', (user_id,))
+            await db.commit()
+            
+            token = self.security.create_token(user_id, username)
+            logger.info(f"User authenticated: {username}")
+            return token
+    
+    async def get_user_by_id(self, user_id: str) -> Optional[User]:
+        async with aiosqlite.connect(self.db.db_path) as db:
+            cursor = await db.execute('''
+                SELECT user_id, username, email, password_hash, role, karma, 
+                       root_coin_value, total_earned, created_at, last_active, is_active
+                FROM users WHERE user_id = ? AND is_active = 1
+            ''', (user_id,))
+            row = await cursor.fetchone()
+            
+            if not row:
+                return None
+            
+            return User(
+                user_id=row[0],
+                username=row[1],
+                email=row[2],
+                password_hash=row[3],
+                role=UserRole(row[4]),
+                karma=Decimal(str(row[5])),
+                root_coin_value=Decimal(str(row[6])),
+                total_earned=Decimal(str(row[7])),
+                created_at=datetime.fromisoformat(row[8]),
+                last_active=datetime.fromisoformat(row[9]),
+                is_active=bool(row[10])
+            )
+    
+    async def create_coin(self, creator_id: str, coin_data: CoinCreate) -> Coin:
+        # Validate content
+        if not self.content_filter.is_safe(coin_data.content):
+            raise ValidationError("Content contains inappropriate material")
+        
+        if not self.content_filter.is_safe(coin_data.improvement_note):
+            raise ValidationError("Improvement note contains inappropriate material")
+        
+        # Check rate limit
+        if not self.rate_limiter.check_rate_limit(f"mint:{creator_id}", max_attempts=5, window_seconds=3600):
+            raise RateLimitError("Minting rate limit exceeded")
+        
+        async with aiosqlite.connect(self.db.db_path) as db:
+            # Get creator's root coin value
+            cursor = await db.execute('''
+                SELECT root_coin_value FROM users WHERE user_id = ?
+            ''', (creator_id,))
+            row = await cursor.fetchone()
+            
+            if not row:
+                raise NotFoundError("User not found")
+            
+            root_value = Decimal(str(row[0]))
+            
+            # Calculate mint amount
+            fraction = coin_data.fraction_percent or Decimal("0.01")  # Default 1%
+            mint_amount = root_value * fraction
+            
+            if mint_amount < Config.MIN_FRACTION_VALUE:
+                raise InsufficientFundsError("Mint amount too small")
+            
+            if root_value < mint_amount:
+                raise InsufficientFundsError("Insufficient root coin value")
+            
+            # Create the transaction
+            await db.execute('BEGIN TRANSACTION')
+            
+            try:
+                # Deduct from root coin
+                await db.execute('''
+                    UPDATE users SET root_coin_value = root_coin_value - ?
+                    WHERE user_id = ?
+                ''', (mint_amount, creator_id))
+                
+                # Create new coin
+                coin_id = str(uuid.uuid4())
+                await db.execute('''
+                    INSERT INTO coins (coin_id, creator_id, owner_id, parent_coin_id, value, content, improvement_note)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                ''', (coin_id, creator_id, creator_id, coin_data.parent_coin_id, 
+                     mint_amount, coin_data.content, coin_data.improvement_note))
+                
+                # Record transaction
+                transaction_id = str(uuid.uuid4())
+                await db.execute('''
+                    INSERT INTO transactions (transaction_id, to_user_id, coin_id, amount, transaction_type, description)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ''', (transaction_id, creator_id, coin_id, mint_amount, 
+                     TransactionType.MINT.value, f"Minted coin: {coin_data.content[:50]}..."))
+                
+                await db.commit()
+                
+                coin = Coin(
+                    coin_id=coin_id,
+                    creator_id=creator_id,
+                    owner_id=creator_id,
+                    parent_coin_id=coin_data.parent_coin_id,
+                    value=mint_amount,
+                    content=coin_data.content,
+                    improvement_note=coin_data.improvement_note,
+                    created_at=datetime.utcnow()
+                )
+                
+                logger.info(f"Created coin {coin_id} for user {creator_id}")
+                return coin
+                
+            except Exception as e:
+                await db.execute('ROLLBACK')
+                raise e
+    
+    async def create_reaction(self, user_id: str, reaction_data: ReactionCreate) -> Reaction:
+        # Check rate limit
+        if not self.rate_limiter.check_rate_limit(f"react:{user_id}"):
+            raise RateLimitError("Reaction rate limit exceeded")
+        
+        # Validate content
+        if reaction_data.message and not self.content_filter.is_safe(reaction_data.message):
+            raise ValidationError("Reaction message contains inappropriate content")
+        
+        async with aiosqlite.connect(self.db.db_path) as db:
+            # Check if coin exists and user isn't reacting to their own coin
+            cursor = await db.execute('''
+                SELECT creator_id, owner_id FROM coins WHERE coin_id = ?
+            ''', (reaction_data.coin_id,))
+            row = await cursor.fetchone()
+            
+            if not row:
+                raise NotFoundError("Coin not found")
+            
+            creator_id, owner_id = row
+            if creator_id == user_id or owner_id == user_id:
+                raise ValidationError("Cannot react to your own coin")
+            
+            # Calculate karma value based on emoji
+            emoji_values = {
+                "❤️": Decimal("5"), "🔥": Decimal("4"), "👍": Decimal("2"), 
+                "😍": Decimal("4"), "🎉": Decimal("3"), "💯": Decimal("4"),
+                "🚀": Decimal("3"), "✨": Decimal("2"), "👀": Decimal("1")
+            }
+            karma_value = emoji_values.get(reaction_data.emoji, Decimal("1"))
+            
+            await db.execute('BEGIN TRANSACTION')
+            
+            try:
+                # Create reaction
+                reaction_id = str(uuid.uuid4())
+                await db.execute('''
+                    INSERT INTO reactions (reaction_id, coin_id, user_id, emoji, message, karma_value)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ''', (reaction_id, reaction_data.coin_id, user_id, reaction_data.emoji, 
+                     reaction_data.message, karma_value))
+                
+                # Award karma to coin creator
+                await db.execute('''
+                    UPDATE users SET karma = karma + ?, total_earned = total_earned + ?
+                    WHERE user_id = ?
+                ''', (karma_value, karma_value, creator_id))
+                
+                # Record transaction
+                transaction_id = str(uuid.uuid4())
+                await db.execute('''
+                    INSERT INTO transactions (transaction_id, from_user_id, to_user_id, amount, transaction_type, description)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ''', (transaction_id, user_id, creator_id, karma_value, 
+                     TransactionType.REACTION_REWARD.value, f"Reaction reward: {reaction_data.emoji}"))
+                
+                await db.commit()
+                
+                reaction = Reaction(
+                    reaction_id=reaction_id,
+                    coin_id=reaction_data.coin_id,
+                    user_id=user_id,
+                    emoji=reaction_data.emoji,
+                    message=reaction_data.message,
+                    karma_value=karma_value,
+                    created_at=datetime.utcnow()
+                )
+                
+                logger.info(f"Created reaction {reaction_id} by user {user_id}")
+                return reaction
+                
+            except Exception as e:
+                await db.execute('ROLLBACK')
+                raise e
+    
+    async def get_user_coins(self, user_id: str, limit: int = 50, offset: int = 0) -> List[Coin]:
+        async with aiosqlite.connect(self.db.db_path) as db:
+            cursor = await db.execute('''
+                SELECT coin_id, creator_id, owner_id, parent_coin_id, value, content, 
+                       improvement_note, created_at, is_root
+                FROM coins 
+                WHERE owner_id = ? 
+                ORDER BY created_at DESC 
+                LIMIT ? OFFSET ?
+            ''', (user_id, limit, offset))
+            rows = await cursor.fetchall()
+            
+            coins = []
+            for row in rows:
+                coin = Coin(
+                    coin_id=row[0],
+                    creator_id=row[1],
+                    owner_id=row[2],
+                    parent_coin_id=row[3],
+                    value=Decimal(str(row[4])),
+                    content=row[5],
+                    improvement_note=row[6],
+                    created_at=datetime.fromisoformat(row[7]),
+                    is_root=bool(row[8])
+                )
+                coins.append(coin)
+            
+            return coins
+    
+    async def get_coin_by_id(self, coin_id: str) -> Optional[Coin]:
+        async with aiosqlite.connect(self.db.db_path) as db:
+            cursor = await db.execute('''
+                SELECT coin_id, creator_id, owner_id, parent_coin_id, value, content, 
+                       improvement_note, created_at, is_root
+                FROM coins WHERE coin_id = ?
+            ''', (coin_id,))
+            row = await cursor.fetchone()
+            
+            if not row:
+                return None
+            
+            return Coin(
+                coin_id=row[0],
+                creator_id=row[1],
+                owner_id=row[2],
+                parent_coin_id=row[3],
+                value=Decimal(str(row[4])),
+                content=row[5],
+                improvement_note=row[6],
+                created_at=datetime.fromisoformat(row[7]),
+                is_root=bool(row[8])
+            )
+    
+    async def get_coin_reactions(self, coin_id: str) -> List[Reaction]:
+        async with aiosqlite.connect(self.db.db_path) as db:
+            cursor = await db.execute('''
+                SELECT reaction_id, coin_id, user_id, emoji, message, karma_value, created_at
+                FROM reactions 
+                WHERE coin_id = ? 
+                ORDER BY created_at DESC
+            ''', (coin_id,))
+            rows = await cursor.fetchall()
+            
+            reactions = []
+            for row in rows:
+                reaction = Reaction(
+                    reaction_id=row[0],
+                    coin_id=row[1],
+                    user_id=row[2],
+                    emoji=row[3],
+                    message=row[4],
+                    karma_value=Decimal(str(row[5])),
+                    created_at=datetime.fromisoformat(row[6])
+                )
+                reactions.append(reaction)
+            
+            return reactions
+
+# FastAPI application
+security = HTTPBearer()
+
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
+    try:
+        payload = SecurityManager.verify_token(credentials.credentials)
+        return payload["user_id"]
+    except AuthenticationError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Initialize database
+    db = Database()
+    await db.initialize()
+    app.state.db = db
+    app.state.service = MetaKarmaService(db)
+    logger.info("MetaKarma Hub initialized")
+    yield
+    # Cleanup if needed
+    logger.info("MetaKarma Hub shutting down")
+
+app = FastAPI(
+    title="MetaKarma Hub",
+    description="A secure social tokenomics platform",
+    version="2.0.0",
+    lifespan=lifespan
+)
+
+# API Routes
+@app.post("/auth/register")
+async def register(user_data: UserCreate):
+    try:
+        user = await app.state.service.create_user(user_data)
+        return {
+            "message": "User created successfully",
+            "user_id": user.user_id,
+            "username": user.username
+        }
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.post("/auth/login")
+async def login(login_data: UserLogin):
+    try:
+        token = await app.state.service.authenticate_user(login_data)
+        return {"access_token": token, "token_type": "bearer"}
+    except AuthenticationError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+
+@app.get("/users/me")
+async def get_current_user_info(current_user_id: str = Depends(get_current_user)):
+    user = await app.state.service.get_user_by_id(current_user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    return {
+        "user_id": user.user_id,
+        "username": user.username,
+        "role": user.role,
+        "karma": str(user.karma),
+        "root_coin_value": str(user.root_coin_value),
+        "total_earned": str(user.total_earned),
